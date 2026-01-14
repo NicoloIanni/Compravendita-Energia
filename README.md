@@ -14,7 +14,8 @@ Backend **Node.js + Express + TypeScript + Sequelize + PostgreSQL** per la **com
 - [Avvio in dev (opzionale)](#avvio-in-dev-opzionale)
 - [Test](#test)
 - [Postman & Newman](#postman--newman)
-- [UML & Design Pattern](#uml--design-pattern)
+- [UML](#uml)
+- [Desing Pattern](#desing-pattern).
 - [Roadmap](#roadmap)
 - [Autori](#autori)
 
@@ -175,7 +176,7 @@ Alla fine dovreste vedere **0 failed** e tutte le assertion verdi, ad esempio:
 3. **404 sulle route** → avete montato male i router o avete messo l’`errorHandler` prima delle route (in Express l’ordine conta).
 
 ---
-## UML & Design Pattern
+## UML
 
 ### UML (in `docs/uml/`)
 ### Use Case Diagram
@@ -193,7 +194,7 @@ Descrive il processo di cancellazione di una prenotazione con eventuale rimborso
 
 ![Cancellation Sequence](docs/uml/img/Sequence-cancel.png)
 
-### Design Pattern (minimo sensato)
+### Design Pattern
 - **Service Layer**: logica business fuori dalle route
 - **Repository**: accesso DB isolato dai service
 - **Strategy**: algoritmo di allocazione/taglio intercambiabile (es. `ProportionalCutStrategy`)
