@@ -21,4 +21,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    environment:
+     JWT_SECRET: change_me
+     ADMIN_USER: admin
+     ADMIN_PASS: admin
 

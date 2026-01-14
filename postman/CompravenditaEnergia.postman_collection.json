@@ -13,12 +13,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/health",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "health"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
         }
       },
       "event": [
@@ -40,26 +36,19 @@
       "request": {
         "method": "POST",
         "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json" }
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"consumer@example.com\",\n  \"password\": \"password\"\n}"
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/auth/login",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "auth",
-            "login"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "login"]
         },
-        "description": "Endpoint previsto: deve restituire un JSON con un campo token. Esempio: {\"token\":\"<JWT>\"}"
+        "description": "Deve restituire JSON con campo token. Esempio: {\"token\":\"<JWT>\"}"
       },
       "event": [
         {
@@ -67,17 +56,22 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Status code is 200 (o 201) ', function () {",
-              "  pm.expect([200,201,400,401,404]).to.include(pm.response.code);",
+              "pm.test('Status code is 200 (or 201)', function () {",
+              "  pm.expect([200, 201]).to.include(pm.response.code);",
               "});",
               "",
-              "// Se l'endpoint \u00e8 implementato correttamente, salva il token in env.jwt",
-              "try {",
-              "  const json = pm.response.json();",
-              "  if (json && json.token) {",
-              "    pm.environment.set('jwt', json.token);",
-              "  }",
-              "} catch (e) { /* ignore */ }"
+              "let json;",
+              "pm.test('Response is valid JSON', function () {",
+              "  json = pm.response.json();",
+              "  pm.expect(json).to.be.an('object');",
+              "});",
+              "",
+              "pm.test('Token exists', function () {",
+              "  pm.expect(json).to.have.property('token');",
+              "  pm.expect(json.token).to.be.a('string').and.not.empty;",
+              "});",
+              "",
+              "pm.environment.set('jwt', json.token);"
             ]
           }
         }
@@ -88,35 +82,36 @@
       "request": {
         "method": "GET",
         "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{jwt}}"
-          },
-          {
-            "key": "Accept",
-            "value": "application/json"
-          }
+          { "key": "Authorization", "value": "Bearer {{jwt}}" },
+          { "key": "Accept", "value": "application/json" }
         ],
         "url": {
           "raw": "{{baseUrl}}/protected/ping",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "protected",
-            "ping"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["protected", "ping"]
         },
-        "description": "Endpoint dummy protetto: deve richiedere JWT valido. Se jwt mancante/non valido -> 401."
+        "description": "Endpoint dummy protetto: richiede JWT valido. Deve rispondere 200 se autorizzato."
       },
       "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('JWT is present in environment', function () {",
+              "  const jwt = pm.environment.get('jwt');",
+              "  pm.expect(jwt, 'Missing env var jwt: login probably failed').to.be.a('string').and.not.empty;",
+              "});"
+            ]
+          }
+        },
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Status code is 200 when authorized, otherwise 401', function () {",
-              "  pm.expect([200,401,403,404]).to.include(pm.response.code);",
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
               "});"
             ]
           }

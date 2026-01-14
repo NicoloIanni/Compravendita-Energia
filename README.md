@@ -136,39 +136,62 @@ npm test
 
 ## Postman & Newman
 
-### Struttura suggerita
+Questa repo include una **collection Postman minimale** per dimostrare che l’API è testabile in automatico con **Newman** (requisito esplicito).
+
+### Struttura
 ```text
 postman/
   CompravenditaEnergia.postman_collection.json
   CompravenditaEnergia.postman_environment.json
 ```
 
-### Install Newman
+### Endpoint coperti dalla collection
+- `GET /health` → deve rispondere `200`
+- `POST /auth/login` → **stub**: accetta credenziali e ritorna `{ "token": "<JWT>" }`
+- `GET /protected/ping` → **protetto**: richiede `Authorization: Bearer <JWT>` e risponde `200`
+
+> Nota: la collection di default usa `username=admin` e `password=admin`.  
+> Se cambiate le credenziali, aggiornate **o** la collection **o** le variabili d’ambiente nel container.
+
+### Installazione Newman (consigliata: locale al progetto)
 ```bash
-npm i -g newman
+npm i -D newman
 ```
 
-### Run
+### Esecuzione test (con npx)
 ```bash
-newman run postman/CompravenditaEnergia.postman_collection.json \
+npx newman run postman/CompravenditaEnergia.postman_collection.json \
   -e postman/CompravenditaEnergia.postman_environment.json
 ```
 
----
+### Output atteso (esempio reale)
+Alla fine dovreste vedere **0 failed** e tutte le assertion verdi, ad esempio:
+- login `200` + token salvato in `env.jwt`
+- chiamata protetta `200` con `Bearer {{jwt}}`
 
+### Troubleshooting (le 3 cause tipiche)
+1. **401 su /auth/login** → credenziali sbagliate o env non caricate nel container (`ADMIN_USER`, `ADMIN_PASS`).
+2. **401 su /protected/ping** → token non salvato (login fallito) o `JWT_SECRET` diverso tra generazione e verify.
+3. **404 sulle route** → avete montato male i router o avete messo l’`errorHandler` prima delle route (in Express l’ordine conta).
+
+---
 ## UML & Design Pattern
 
 ### UML (in `docs/uml/`)
-- Use Case Diagram (Admin / Producer / Consumer)
-- Sequence Diagram: prenotazione + scalare credito
-- Sequence Diagram: cancellazione + rimborso/penale
+### Use Case Diagram
+Il diagramma dei casi d’uso descrive gli attori del sistema (Admin, Producer, Consumer) e le principali funzionalità offerte dalla piattaforma.
 
-Embed (quando pronti):
-```md
-![Use Case](docs/uml/use-case.png)
-![Sequence - Reservation](docs/uml/sequence-reservation.png)
-![Sequence - Cancel](docs/uml/sequence-cancel.png)
-```
+![Use Case](docs/uml/img/use-case.png)
+
+### Sequence Diagram – Reservation
+Mostra il flusso di prenotazione dell’energia, inclusa la validazione del token e la scalatura del credito.
+
+![Reservation Sequence](docs/uml/img/reservation.png)
+
+### Sequence Diagram – Cancellation
+Descrive il processo di cancellazione di una prenotazione con eventuale rimborso o applicazione di penali.
+
+![Cancellation Sequence](docs/uml/img/Sequence-cancel.png)
 
 ### Design Pattern (minimo sensato)
 - **Service Layer**: logica business fuori dalle route
