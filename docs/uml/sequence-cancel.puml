@@ -1,0 +1,41 @@
+@startuml
+autonumber
+actor Consumer
+participant "API (Express)" as API
+participant "AuthMiddleware\n(JWT + RBAC)" as AUTH
+participant "ReservationService" as SVC
+participant "ReservationRepository\n(Sequelize)" as REPO
+database "PostgreSQL" as DB
+
+Consumer -> API: PATCH /reservations/{id}\n{newKWh=0}
+API -> AUTH: validate JWT + role=consumer
+AUTH --> API: ok
+
+API -> SVC: updateReservation(consumerId, reservationId, newKWh)
+SVC -> REPO: loadReservation(reservationId)
+REPO -> DB: SELECT reservation + slotStart + price + kWh
+DB --> REPO: reservation
+REPO --> SVC: reservation
+
+SVC -> SVC: now vs slotStart\ncheck 24h rule
+alt cancellazione > 24h
+  SVC -> SVC: refund = oldKWh * price
+  SVC -> REPO: tx begin
+  SVC -> REPO: setReservationKWh(reservationId, 0)
+  REPO -> DB: UPDATE reservation kWh=0
+  DB --> REPO: ok
+  SVC -> REPO: increaseCredit(consumerId, refund)
+  REPO -> DB: UPDATE credit = credit + refund
+  DB --> REPO: ok
+  SVC -> REPO: tx commit
+  SVC --> API: 200 OK (refund)
+else cancellazione <= 24h
+  SVC -> SVC: penale = costo totale (no refund)
+  SVC -> REPO: setReservationKWh(reservationId, 0)
+  REPO -> DB: UPDATE reservation kWh=0
+  DB --> REPO: ok
+  SVC --> API: 200 OK (no refund)
+end
+
+API --> Consumer: Response
+@enduml

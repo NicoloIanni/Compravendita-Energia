@@ -1,0 +1,127 @@
+{
+  "info": {
+    "name": "Compravendita Energia - Base",
+    "_postman_id": "f50e5520-7acd-4493-8101-630d49931369",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Collection minima per dimostrare Newman: health + login (stub) + endpoint protetto dummy con Bearer token."
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth - Login (stub)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"consumer@example.com\",\n  \"password\": \"password\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "description": "Endpoint previsto: deve restituire un JSON con un campo token. Esempio: {\"token\":\"<JWT>\"}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200 (o 201) ', function () {",
+              "  pm.expect([200,201,400,401,404]).to.include(pm.response.code);",
+              "});",
+              "",
+              "// Se l'endpoint \u00e8 implementato correttamente, salva il token in env.jwt",
+              "try {",
+              "  const json = pm.response.json();",
+              "  if (json && json.token) {",
+              "    pm.environment.set('jwt', json.token);",
+              "  }",
+              "} catch (e) { /* ignore */ }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Protected - Dummy Ping",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt}}"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/protected/ping",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "protected",
+            "ping"
+          ]
+        },
+        "description": "Endpoint dummy protetto: deve richiedere JWT valido. Se jwt mancante/non valido -> 401."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200 when authorized, otherwise 401', function () {",
+              "  pm.expect([200,401,403,404]).to.include(pm.response.code);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+@startuml
+autonumber
+actor Consumer
+participant "API (Express)" as API
+participant "AuthMiddleware\n(JWT + RBAC)" as AUTH
+participant "ReservationService" as SVC
+participant "ReservationRepository\n(Sequelize)" as REPO
+database "PostgreSQL" as DB
+
+Consumer -> API: POST /reservations\n{producerId, slotStart, kWh}
+API -> AUTH: validate JWT + role=consumer
+AUTH --> API: ok
+
+API -> SVC: createReservation(consumerId, producerId, slotStart, kWh)
+SVC -> SVC: validate input\n(min 0.1 kWh, slot T+1,\nprenotabile > 24h)
+SVC -> REPO: loadSlotCapacityAndPrice(producerId, slotStart)
+REPO -> DB: SELECT slot + price + capacity
+DB --> REPO: slot data
+REPO --> SVC: slot data
+
+SVC -> SVC: cost = kWh * price
+SVC -> REPO: loadConsumerCredit(consumerId)
+REPO -> DB: SELECT credit
+DB --> REPO: credit
+REPO --> SVC: credit
+
+alt credito sufficiente
+  SVC -> REPO: tx begin
+  SVC -> REPO: decreaseCredit(consumerId, cost)
+  REPO -> DB: UPDATE credit = credit - cost
+  DB --> REPO: ok
+
+  SVC -> REPO: createReservation(...)
+  REPO -> DB: INSERT reservation
+  DB --> REPO: reservationId
+  REPO --> SVC: reservationId
+
+  SVC -> REPO: tx commit
+  SVC --> API: 201 Created + reservation
+else credito insufficiente
+  SVC --> API: 409/400 Insufficient credit
+end
+
+API --> Consumer: Response
+@enduml
