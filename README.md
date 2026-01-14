@@ -1,11 +1,12 @@
 # Compravendita Energia ⚡️
 
-Backend **Node.js + Express + TypeScript + Sequelize + PostgreSQL** per la **compravendita di energia** su slot orari (T+1: si compra oggi per consumare domani).
+Backend REST per una piattaforma di **compravendita di energia elettrica “oggi per domani” (T+1)**:  
+i **produttori** pubblicano capacità e prezzo su **slot da 1 ora** per il giorno successivo, i **consumatori** prenotano energia usando **credito/token**, e il produttore può **risolvere** le richieste applicando (se serve) un **taglio proporzionale**.
 
 ---
 
 ## Indice
-- [Descrizione](#descrizione)
+- [Obiettivo del progetto](#obiettivo-del-progetto)
 - [Requisiti](#requisiti)
 - [Regole di dominio](#regole-di-dominio)
 - [Stack](#stack)
@@ -15,57 +16,84 @@ Backend **Node.js + Express + TypeScript + Sequelize + PostgreSQL** per la **com
 - [Test](#test)
 - [Postman & Newman](#postman--newman)
 - [UML](#uml)
-- [Desing Pattern](#desing-pattern).
+- [Desing Pattern](#desing-pattern)
 - [Roadmap](#roadmap)
 - [Autori](#autori)
 
 ---
 
-## Descrizione
-Il sistema gestisce:
-- **Produttori** con capacità e prezzo per kWh (anche variabili per ora).
-- **Consumatori** con credito/token per acquistare energia.
-- **Prenotazioni** su slot da **1 ora** per il giorno successivo (**T+1**).
-- **Modifiche/cancellazioni** con regole temporali.
-- **Statistiche** (venduto/occupazione/guadagni) e **carbon footprint**.
+## Obiettivo del progetto
+L’obiettivo è realizzare un’applicazione che:
 
-> Nota: questo repository contiene il **backend**. L’obiettivo è rispettare i requisiti della consegna (JWT+ruoli, validazioni, middleware, test, docker-compose, Postman/Newman, UML, pattern).
+- Gestisce utenti con ruoli (**admin / producer / consumer**)
+- Consente ai produttori di definire per ogni ora di domani **capacità (kWh)** e **prezzo (€/kWh o token/kWh)**
+- Consente ai consumatori di fare **prenotazioni** (con vincoli e regole temporali)
+- Gestisce credito, addebiti, rimborsi e concorrenza in modo **consistente** (transaction DB)
+- Produce **statistiche** su occupazione, vendite, ricavi e **carbon footprint**
 
 ---
 
 ## Requisiti
-- Node.js + Express
-- Sequelize + DB esterno (PostgreSQL)
-- TypeScript
-- JWT con ruolo (`admin | producer | consumer`)
-- Validazione input, middleware, error handler
-- ≥ 6 test con Jest
-- Docker Compose per avvio, Postman/Newman per test, README con UML + pattern
+
+### Ruoli
+- **Admin**: crea produttori e consumatori (seed o endpoint dedicato).
+- **Producer**: gestisce slot (capacità/prezzo), vede richieste, risolve allocazioni, consulta statistiche/ricavi.
+- **Consumer**: prenota/modifica/cancella, vede acquisti e impronta CO₂.
+
+### “Oggi per domani”
+Per semplicità operativa, il sistema lavora su **slot del giorno successivo (domani)**.
+
+### Slot orario
+Ogni slot è identificato da:
+- `date` (YYYY-MM-DD)
+- `hour` (0–23)
+
+### Credito / token
+- il consumer ha un saldo
+- la prenotazione **scala** il credito (in transaction)
+- cancellazioni/modifiche possono generare **rimborsi** in base alle regole
+
+### Taglio proporzionale (oversubscription)
+Se la somma richiesta supera la capacità:
+- il producer applica un **taglio lineare proporzionale**
+- l’allocato può essere < richiesto → si rimborsa la differenza
+
+### Carbon footprint
+Il sistema calcola CO₂ come:
+- `kWh * co2_g_per_kwh` (in grammi)
 
 ---
 
 ## Regole di dominio
-- Slot acquistabili rispettando la regola delle **24 ore** rispetto all’inizio dello slot.
-- Quantità minima acquistabile: **0.1 kWh**.
-- Se richieste > capacità oraria → **taglio proporzionale** (lineare), con accettazione a discrezione del produttore.
-- Modifica/cancellazione:
-  - **> 24h**: nessun costo
-  - **≤ 24h**: addebito totale
+- **Prenotazione solo entro una finestra temporale**:
+  Uno slot è prenotabile solo se **mancano almeno 24h** all’inizio dello slot.  
+  (Scelta progettuale: usiamo `slotStart - now >= 24h`)
+
+- **Cancellazione/Modifica**:
+  Stessa regola temporale: fuori finestra → niente rimborso (o regola definita), dentro finestra → rimborso secondo policy.
+
+- **Consistenza con richieste concorrenti**:
+  Credito e prenotazioni sono “soldi finti”, ma il problema è reale: due richieste contemporanee possono rompere tutto.  
+  → usiamo **transaction** e lock dove serve.
+
+- **Risoluzione NON automatica**:
+   - Le prenotazioni vengono create in stato **PENDING**
+   - la risoluzione (ALLOCATED / taglio) avviene con un endpoint del producer
 
 ---
 
 ## Stack
-- **Express 5** + **TypeScript**
-- **PostgreSQL 16** (container)
+- **Node.js + Express** (API)
+- **TypeScript** (tipi, meno errori idioti)
 - **Sequelize** (ORM)
-- **Zod** (validation)
+- **PostgreSQL** (DB) via **Docker Compose**
 - **Jest + Supertest** (test API)
-- **Postman + Newman** (run CLI collezioni)
-- **Docker Compose** (orchestrazione)
+- **Postman** (test manuale + definizione collection)
+- **Newman** (esecuzione Postman da CLI, ripetibile, “come un test”)
 
 ---
 
-## Struttura repository
+## Struttura repository DA AGGIORNARE
 ```text
 .
 ├─ docker-compose.yaml
@@ -91,35 +119,27 @@ Il sistema gestisce:
 
 ## Avvio rapido (Docker)
 
-### 1) Configura `.env`
-Esempio:
-```env
-PORT=3000
-DB_HOST=db
-DB_PORT=5432
-DB_NAME=energy
-DB_USER=app
-DB_PASSWORD=app
-JWT_SECRET=change_me
-```
-
-### 2) Avvia stack
-> In questo repo il file Compose si chiama `docker-compose.yaml`. Per evitare ambiguità usiamo `-f`.
-
+### 1) Avvia servizi
 ```bash
-docker compose -f docker-compose.yaml up --build
+docker compose up --build
 ```
 
-### 3) Smoke test
+### 2) Healthcheck
 ```bash
 curl -i http://localhost:3000/health
 ```
-Output atteso: `200 OK` con `{"status":"ok"}`.
+
+Risposta attesa: `200 OK` con JSON.
+
+> Se il DB non parte, non è “sfortuna”: è quasi sempre `.env` sbagliato o volume rotto.  
+> In quel caso: `docker compose down -v` e riparti.
 
 ---
 
 ## Avvio in dev (opzionale)
-Se vuoi avviare senza Docker:
+
+Se vuoi lanciare Node fuori da Docker:
+
 ```bash
 npm install
 npm run dev
@@ -127,7 +147,7 @@ npm run dev
 
 ---
 
-## Test
+## Test DA MODIFICARE
 Esecuzione:
 ```bash
 npm test
@@ -137,14 +157,30 @@ npm test
 
 ## Postman & Newman
 
-Questa repo include una **collection Postman minimale** per dimostrare che l’API è testabile in automatico con **Newman** (requisito esplicito).
+### Postman
+Postman è il modo più veloce per:
+- provare gli endpoint a mano (debug immediato)
+- salvare richieste in una **Collection** (documentazione eseguibile)
+- gestire variabili (base URL, token, ecc.)
 
-### Struttura
-```text
-postman/
-  CompravenditaEnergia.postman_collection.json
-  CompravenditaEnergia.postman_environment.json
+In breve: Postman ti permette di “toccare” l’API mentre la costruisci, senza scrivere codice client.
+
+### Newman
+Newman è Postman **da linea di comando**.  
+Serve perché:
+- rende i test di API **ripetibili** e automatizzabili
+- permette di eseguire la collection in CI o comunque senza GUI
+- è spesso richiesto come parte della consegna: “non mi raccontare che funziona, fammelo girare”
+
+Esecuzione tipica:
+```bash
+npx newman run postman/CompravenditaEnergia.postman_collection.json \
+  -e postman/CompravenditaEnergia.postman_environment.json
 ```
+
+> Postman = test manuale e comodo.  
+> Newman = stesso test, ma automatizzato e ripetibile.
+
 
 ### Endpoint coperti dalla collection
 - `GET /health` → deve rispondere `200`
@@ -164,11 +200,7 @@ npm i -D newman
 npx newman run postman/CompravenditaEnergia.postman_collection.json \
   -e postman/CompravenditaEnergia.postman_environment.json
 ```
-
-### Output atteso (esempio reale)
-Alla fine dovreste vedere **0 failed** e tutte le assertion verdi, ad esempio:
-- login `200` + token salvato in `env.jwt`
-- chiamata protetta `200` con `Bearer {{jwt}}`
+###OUTPUT ATTESO DA METTERE???
 
 ### Troubleshooting (le 3 cause tipiche)
 1. **401 su /auth/login** → credenziali sbagliate o env non caricate nel container (`ADMIN_USER`, `ADMIN_PASS`).
@@ -177,8 +209,6 @@ Alla fine dovreste vedere **0 failed** e tutte le assertion verdi, ad esempio:
 
 ---
 ## UML
-
-### UML (in `docs/uml/`)
 ### Use Case Diagram
 Il diagramma dei casi d’uso descrive gli attori del sistema (Admin, Producer, Consumer) e le principali funzionalità offerte dalla piattaforma.
 
@@ -195,21 +225,55 @@ Descrive il processo di cancellazione di una prenotazione con eventuale rimborso
 ![Cancellation Sequence](docs/uml/img/Sequence-cancel.png)
 
 ### Design Pattern
-- **Service Layer**: logica business fuori dalle route
-- **Repository**: accesso DB isolato dai service
-- **Strategy**: algoritmo di allocazione/taglio intercambiabile (es. `ProportionalCutStrategy`)
+### 1) Repository Pattern
+Scopo: isolare Sequelize e il DB dal resto del codice.
+
+Esempi previsti:
+- `ProducerRepository`
+- `ReservationRepository`
+
+Vantaggio:
+- il service non dipende da Sequelize direttamente
+- testare diventa più facile (mock repository)
+
+### 2) Service Layer
+Scopo: tenere la business logic fuori dai controller.
+
+Esempi previsti:
+- `ReservationService` (24h rule, credito, PENDING)
+- `SettlementService` (resolve, taglio, refund)
+
+Vantaggio:
+- controller = “parsing HTTP”
+- service = “regole del progetto”
+
+### 3) Strategy Pattern (allocazione)
+Scopo: avere due strategie di allocazione senza if-else infinito.
+
+- `NoCutStrategy` → se richieste <= capacità
+- `ProportionalCutStrategy` → taglio lineare proporzionale
+
+Vantaggio:
+- cambia la strategia senza cambiare mezzo progetto
+
+### 4) Factory (output stats)
+Scopo: lo stesso endpoint può produrre output diversi (minimo JSON, opzionale PNG).
+
+- `StatsOutputFactory` → crea JSON sempre, PNG se implementato
 
 ---
 
 ## Roadmap
-- [x] Scaffold + Healthcheck
-- [ ] Migrations + modelli DB (`User`, `ProducerSlot`, `Reservation`, …)
-- [ ] Auth JWT + RBAC
-- [ ] Endpoint Producer (slot, richieste, resolve, stats, earnings)
-- [ ] Endpoint Consumer (prenota, modifica/cancella, acquisti filtrati, carbon footprint)
-- [ ] ≥ 6 test Jest
-- [ ] Postman collection + Newman run
-- [ ] UML + pattern finalizzati nel README
+- **Giorno 1**: repo + setup + docker-compose + health + stub auth + test base ✅
+- **Giorno 2**: modelli Sequelize + associazioni + seed + JWT reale
+- **Giorno 3**: producer slot capacity/price (batch) + validazioni
+- **Giorno 4**: consumer prenotazione PENDING + scala credito (transaction)
+- **Giorno 5**: modifica/cancellazione + regola 24h + refund/penale
+- **Giorno 6**: producer view richieste + % occupazione
+- **Giorno 7**: resolve proporzionale + allocazioni + refund differenze (transaction)
+- **Giorno 8**: purchases filter + carbon + earnings + stats JSON
+- **Giorno 9**: 6 test Jest + Postman collection + Newman
+- **Giorno 10**: pulizia + UML finale + documentazione consegnabile
 
 ---
 
