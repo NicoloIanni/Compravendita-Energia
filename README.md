@@ -1,131 +1,71 @@
-# Compravendita-Energia
-Backend Node.js + Express + TypeScript + Sequelize + PostgreSQL per la compravendita di energia su slot orari (T+1).
+# Compravendita Energia ⚡️
 
+Backend **Node.js + Express + TypeScript + Sequelize + PostgreSQL** per la **compravendita di energia** su slot orari (T+1: si compra oggi per consumare domani).
 
+---
 
+## Indice
+- [Descrizione](#descrizione)
+- [Requisiti](#requisiti)
+- [Regole di dominio](#regole-di-dominio)
+- [Stack](#stack)
+- [Struttura repository](#struttura-repository)
+- [Avvio rapido (Docker)](#avvio-rapido-docker)
+- [Avvio in dev (opzionale)](#avvio-in-dev-opzionale)
+- [Test](#test)
+- [Postman & Newman](#postman--newman)
+- [UML & Design Pattern](#uml--design-pattern)
+- [Roadmap](#roadmap)
+- [Autori](#autori)
 
+---
 
-
-Indice
-
-Descrizione
-
-Requisiti del progetto
-
-Regole di dominio
-
-Stack & Architettura
-
-Struttura repository
-
-Avvio rapido
-
-Test
-
-Postman & Newman
-
-UML & Design Pattern
-
-Roadmap
-
-Autori
-
-Descrizione
-
+## Descrizione
 Il sistema gestisce:
+- **Produttori** con capacità e prezzo per kWh (anche variabili per ora).
+- **Consumatori** con credito/token per acquistare energia.
+- **Prenotazioni** su slot da **1 ora** per il giorno successivo (**T+1**).
+- **Modifiche/cancellazioni** con regole temporali.
+- **Statistiche** (venduto/occupazione/guadagni) e **carbon footprint**.
 
-Produttori con capacità (anche variabile per ora) e prezzo per kWh.
+> Nota: questo repository contiene il **backend**. L’obiettivo è rispettare i requisiti della consegna (JWT+ruoli, validazioni, middleware, test, docker-compose, Postman/Newman, UML, pattern).
 
-Consumatori con credito/token per acquistare energia.
+---
 
-Prenotazioni su slot da 1 ora per il giorno successivo (T+1).
+## Requisiti
+- Node.js + Express
+- Sequelize + DB esterno (PostgreSQL)
+- TypeScript
+- JWT con ruolo (`admin | producer | consumer`)
+- Validazione input, middleware, error handler
+- ≥ 6 test con Jest
+- Docker Compose per avvio, Postman/Newman per test, README con UML + pattern
 
-Gestione cancellazioni/modifiche, statistiche ed emissioni (carbon footprint). 
+---
 
-1cc0aad6_202601_PA_G02
+## Regole di dominio
+- Slot acquistabili rispettando la regola delle **24 ore** rispetto all’inizio dello slot.
+- Quantità minima acquistabile: **0.1 kWh**.
+- Se richieste > capacità oraria → **taglio proporzionale** (lineare), con accettazione a discrezione del produttore.
+- Modifica/cancellazione:
+  - **> 24h**: nessun costo
+  - **≤ 24h**: addebito totale
 
- 
+---
 
-1cc0aad6_202601_PA_G02
+## Stack
+- **Express 5** + **TypeScript**
+- **PostgreSQL 16** (container)
+- **Sequelize** (ORM)
+- **Zod** (validation)
+- **Jest + Supertest** (test API)
+- **Postman + Newman** (run CLI collezioni)
+- **Docker Compose** (orchestrazione)
 
-Requisiti del progetto
+---
 
-Da specifica:
-
-Backend con Node.js, Express, Sequelize e DB esterno 
-
-1cc0aad6_202601_PA_G02
-
-TypeScript 
-
-1cc0aad6_202601_PA_G02
-
-Autenticazione JWT con ruolo nel token (producer | consumer | admin) 
-
-1cc0aad6_202601_PA_G02
-
-Validazioni input + middleware + error handling middleware 
-
-1cc0aad6_202601_PA_G02
-
-Almeno 6 test con Jest 
-
-1cc0aad6_202601_PA_G02
-
-Avvio con Docker Compose, test API con Postman/Newman, documentazione con UML + design pattern 
-
-1cc0aad6_202601_PA_G02
-
-Regole di dominio
-
-Slot acquistabili rispettando la regola delle 24h rispetto all’inizio dello slot. 
-
-1cc0aad6_202601_PA_G02
-
-Quantità minima acquistabile: 0.1 kWh. 
-
-1cc0aad6_202601_PA_G02
-
-Se le richieste superano la capacità oraria → taglio proporzionale lineare (accettazione a discrezione del produttore). 
-
-1cc0aad6_202601_PA_G02
-
-Modifica/cancellazione:
-
->24h: nessun costo
-
-≤24h: addebito totale 
-
-1cc0aad6_202601_PA_G02
-
-Stack & Architettura
-Tecnologie
-
-Express + TypeScript
-
-PostgreSQL (in container)
-
-Sequelize (ORM)
-
-Zod per validation
-
-Jest + Supertest per test API (Supertest può testare app senza dover aprire una porta)
-
-Postman + Newman per run CLI delle collection
-
-Docker Compose per orchestrazione servizi
-
-Scelta architetturale (a livelli)
-
-routes/ → definizione endpoint
-
-middlewares/ → auth, RBAC, validation, error handling
-
-services/ → logica business (prenotazioni, tagli, rimborsi, statistiche)
-
-models/ (Sequelize) → mapping DB
-
-Struttura repository
+## Struttura repository
+```text
 .
 ├─ docker-compose.yaml
 ├─ Dockerfile
@@ -144,12 +84,15 @@ Struttura repository
    │  └─ errorHandler.ts
    └─ tests
       └─ health.test.ts
+```
 
-Avvio rapido
-1) Configurazione .env
+---
 
+## Avvio rapido (Docker)
+
+### 1) Configura `.env`
 Esempio:
-
+```env
 PORT=3000
 DB_HOST=db
 DB_PORT=5432
@@ -157,102 +100,95 @@ DB_NAME=energy
 DB_USER=app
 DB_PASSWORD=app
 JWT_SECRET=change_me
+```
 
-2) Avvio stack (API + DB)
+### 2) Avvia stack
+> In questo repo il file Compose si chiama `docker-compose.yaml`. Per evitare ambiguità usiamo `-f`.
 
-Nel progetto:
-
+```bash
 docker compose -f docker-compose.yaml up --build
+```
 
-
-Il flag -f permette di specificare il file compose esplicitamente.
-
-Nota: il path “canonico” per compose è compose.yaml/compose.yml, ma docker-compose.yaml/yml resta supportato per compatibilità.
-
-3) Smoke test
+### 3) Smoke test
+```bash
 curl -i http://localhost:3000/health
+```
+Output atteso: `200 OK` con `{"status":"ok"}`.
 
+---
 
-Output atteso: 200 OK con { "status": "ok" }.
+## Avvio in dev (opzionale)
+Se vuoi avviare senza Docker:
+```bash
+npm install
+npm run dev
+```
 
-Test
+---
 
+## Test
 Esecuzione:
-
+```bash
 npm test
+```
 
+---
 
-Jest è il framework di test richiesto. 
+## Postman & Newman
 
-1cc0aad6_202601_PA_G02
-
-Supertest viene usato per testare le route Express in modo pulito (senza dover avviare un server su porta fissa).
-
-Postman & Newman
-
-Newman è il runner CLI per le Postman Collections (utile anche per CI).
-
-Struttura suggerita
+### Struttura suggerita
+```text
 postman/
   CompravenditaEnergia.postman_collection.json
   CompravenditaEnergia.postman_environment.json
+```
 
-Installazione Newman
+### Install Newman
+```bash
 npm i -g newman
+```
 
-Esecuzione
+### Run
+```bash
 newman run postman/CompravenditaEnergia.postman_collection.json \
   -e postman/CompravenditaEnergia.postman_environment.json
+```
 
+---
 
-UML & Design Pattern
+## UML & Design Pattern
 
-La consegna richiede UML + pattern documentati. 
+### UML (in `docs/uml/`)
+- Use Case Diagram (Admin / Producer / Consumer)
+- Sequence Diagram: prenotazione + scalare credito
+- Sequence Diagram: cancellazione + rimborso/penale
 
-1cc0aad6_202601_PA_G02
-
-UML (da inserire in docs/uml/)
-
-Use Case Diagram (Admin / Producer / Consumer)
-
-Sequence Diagram: prenotazione + scalare credito
-
-Sequence Diagram: cancellazione + rimborso/penale
-
-Esempio embed:
-
+Embed (quando pronti):
+```md
 ![Use Case](docs/uml/use-case.png)
 ![Sequence - Reservation](docs/uml/sequence-reservation.png)
 ![Sequence - Cancel](docs/uml/sequence-cancel.png)
+```
 
-Design Pattern (minimo sensato)
+### Design Pattern (minimo sensato)
+- **Service Layer**: logica business fuori dalle route
+- **Repository**: accesso DB isolato dai service
+- **Strategy**: algoritmo di allocazione/taglio intercambiabile (es. `ProportionalCutStrategy`)
 
-Service Layer: logica business fuori dalle route
+---
 
-Repository: accesso DB isolato dai service
+## Roadmap
+- [x] Scaffold + Healthcheck
+- [ ] Migrations + modelli DB (`User`, `ProducerSlot`, `Reservation`, …)
+- [ ] Auth JWT + RBAC
+- [ ] Endpoint Producer (slot, richieste, resolve, stats, earnings)
+- [ ] Endpoint Consumer (prenota, modifica/cancella, acquisti filtrati, carbon footprint)
+- [ ] ≥ 6 test Jest
+- [ ] Postman collection + Newman run
+- [ ] UML + pattern finalizzati nel README
 
-Strategy: algoritmo “allocazione/taglio” intercambiabile (es. ProportionalCutStrategy)
+---
 
-Roadmap
-
- Scaffold + Healthcheck
-
- Migrations + modelli DB (User, ProducerSlot, Reservation, …)
-
- Auth JWT + RBAC
-
- Endpoint Producer (slot, richieste, resolve, stats, earnings)
-
- Endpoint Consumer (prenota, modifica/cancella, acquisti filtrati, carbon footprint)
-
- ≥ 6 test Jest
-
- Postman collection + Newman run
-
- UML + pattern finalizzati nel README
-
-Autori
-
-Nicolò Ianni
-
-Danilo La Palombara
+## Autori
+- **Nicolò Ianni**
+- **Danilo La Palombara**
