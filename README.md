@@ -129,8 +129,13 @@ docker compose up --build
 curl -i http://localhost:3000/health
 ```
 
+### 3) Seed utenti di test (sviluppo)
+```bash
+docker compose exec api npm run seed
+```
 Risposta attesa: `200 OK` con JSON.
 
+> Lo script di seed crea utenti base (admin/producer/consumer) con password hashate (bcrypt) per facilitare test e dimostrazioni.
 > Se il DB non parte, non è “sfortuna”: è quasi sempre `.env` sbagliato o volume rotto.  
 > In quel caso: `docker compose down -v` e riparti.
 
@@ -181,14 +186,17 @@ npx newman run postman/CompravenditaEnergia.postman_collection.json \
 > Postman = test manuale e comodo.  
 > Newman = stesso test, ma automatizzato e ripetibile.
 
-
 ### Endpoint coperti dalla collection
-- `GET /health` → deve rispondere `200`
-- `POST /auth/login` → **stub**: accetta credenziali e ritorna `{ "token": "<JWT>" }`
-- `GET /protected/ping` → **protetto**: richiede `Authorization: Bearer <JWT>` e risponde `200`
+- `GET /health` → `200 OK`
+- `POST /auth/login` → `200 OK` e ritorna `{ "token": "<JWT>" }` con credenziali valide
+- `POST /auth/login` (wrong password) → `401 Unauthorized`
+- `POST /auth/login` (missing body) → `400 Bad Request`
+- `POST /auth/login` (missing password) → `400 Bad Request`
+- `GET /protected/ping` (con token) → `200 OK`
+- `GET /protected/ping` (missing token) → `401 Unauthorized`
 
-> Nota: la collection di default usa `username=admin` e `password=admin`.  
-> Se cambiate le credenziali, aggiornate **o** la collection **o** le variabili d’ambiente nel container.
+> Nota: la collection usa variabili d’ambiente Postman (`admin_email`, `admin_password`) e salva automaticamente il token in `jwt_token` (e per compatibilità anche in `jwt`).  
+> Se cambiano le credenziali di seed è necessario aggiornare le variabili nell’environment Postman.
 
 ### Installazione Newman (consigliata: locale al progetto)
 ```bash
@@ -225,42 +233,47 @@ Descrive il processo di cancellazione di una prenotazione con eventuale rimborso
 ![Cancellation Sequence](docs/uml/img/Sequence-cancel.png)
 
 ### Design Pattern
-### 1) Repository Pattern
-Scopo: isolare Sequelize e il DB dal resto del codice.
+L’architettura del progetto è stata pensata per separare chiaramente le responsabilità
+tra i vari livelli dell’applicazione, seguendo un approccio modulare e progressivo.
 
-Esempi previsti:
-- `ProducerRepository`
-- `ReservationRepository`
+### 4.1 Middleware Pattern
 
-Vantaggio:
-- il service non dipende da Sequelize direttamente
-- testare diventa più facile (mock repository)
+Il **Middleware Pattern** è utilizzato per gestire funzionalità trasversali alle API,
+in particolare per l’autenticazione e l’autorizzazione degli utenti tramite JWT.
 
-### 2) Service Layer
-Scopo: tenere la business logic fuori dai controller.
+Il middleware intercetta le richieste dirette agli endpoint protetti, verifica la
+presenza dell’header `Authorization` e la validità del Bearer token. In caso di
+token valido, la richiesta viene inoltrata al controller; in caso contrario viene
+restituita una risposta di errore appropriata.
 
-Esempi previsti:
-- `ReservationService` (24h rule, credito, PENDING)
-- `SettlementService` (resolve, taglio, refund)
+Questo approccio consente di centralizzare la logica di sicurezza, evitando
+duplicazioni di codice e mantenendo le rotte applicative focalizzate sulla sola
+logica funzionale.
 
-Vantaggio:
-- controller = “parsing HTTP”
-- service = “regole del progetto”
+### 4.2 Separation of Concerns
 
-### 3) Strategy Pattern (allocazione)
-Scopo: avere due strategie di allocazione senza if-else infinito.
+Il progetto adotta una chiara **separazione delle responsabilità** tra i diversi
+moduli dell’applicazione, secondo i principi della *Separation of Concerns*.
 
-- `NoCutStrategy` → se richieste <= capacità
-- `ProportionalCutStrategy` → taglio lineare proporzionale
+In particolare:
+- le **routes** gestiscono le richieste HTTP e la validazione di base degli input;
+- i **middlewares** implementano la logica trasversale (autenticazione, gestione errori);
+- il modulo **config** centralizza la configurazione di ambiente e database;
+- gli script di **seed** sono utilizzati per l’inizializzazione dei dati di test.
 
-Vantaggio:
-- cambia la strategia senza cambiare mezzo progetto
+Questa organizzazione migliora la leggibilità del codice e semplifica la
+manutenzione e l’evoluzione del sistema.
 
-### 4) Factory (output stats)
-Scopo: lo stesso endpoint può produrre output diversi (minimo JSON, opzionale PNG).
+### 4.3 Pattern pianificati DA MODIFICARE
 
-- `StatsOutputFactory` → crea JSON sempre, PNG se implementato
+Nelle fasi successive del progetto verranno introdotti ulteriori pattern
+architetturali per supportare la crescente complessità della logica di business.
 
+In particolare sono previsti:
+- il **Repository Pattern**, per isolare l’accesso ai dati e ridurre il coupling con Sequelize;
+- un **Service Layer**, per incapsulare la logica di business e le regole applicative;
+- lo **Strategy Pattern**, per gestire in modo flessibile le diverse politiche di
+  allocazione dell’energia.
 ---
 
 ## Roadmap
