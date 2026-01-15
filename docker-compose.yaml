@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16
+    restart: always
     environment:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
@@ -12,6 +13,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    volumes:
+      - pgdata:/var/lib/postgresql/data
 
   api:
     build: .
@@ -25,4 +28,17 @@ services:
      JWT_SECRET: change_me
      ADMIN_USER: admin
      ADMIN_PASS: admin
+  
+  pgadmin:
+     image: dpage/pgadmin4
+     environment:
+       PGADMIN_DEFAULT_EMAIL: admin@example.com
+       PGADMIN_DEFAULT_PASSWORD: admin
+     ports:
+       - "8080:80"
+     depends_on:
+       - db
+volumes:
+  pgdata:
+
 

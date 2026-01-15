@@ -1,31 +1,40 @@
 import { Router } from "express";
-import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
+import * as jwt from "jsonwebtoken";
+import User from "../models/User";
 
 const router = Router();
 
-router.post("/login", (req, res) => {
-  const { username, password } = req.body ?? {};
-  const adminUser = process.env.ADMIN_USER ?? "admin";
-  const adminPass = process.env.ADMIN_PASS ?? "admin";
-  const secret = process.env.JWT_SECRET;
+router.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: "email e password obbligatorie" });
+    }
 
-  if (!secret) {
-    return res.status(500).json({ error: "JWT_SECRET not configured" });
+    const user = await User.findOne({ where: { email } });
+    if (!user) return res.status(401).json({ error: "Credenziali non valide" });
+
+    const match = await bcrypt.compare(password, user.passwordHash);
+    if (!match) return res.status(401).json({ error: "Credenziali non valide" });
+
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ error: "Configurazione server errata" });
+    }
+
+    const secret: jwt.Secret = process.env.JWT_SECRET;
+
+    const accessToken = jwt.sign(
+      { userId: user.id, role: user.role },
+      secret,
+      { expiresIn: 3600 } // 1 ora in secondi
+    );
+
+    return res.json({ accessToken });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Errore interno" });
   }
-
-  // stub minimal: accetta solo admin/admin (o env)
-  if (username !== adminUser || password !== adminPass) {
-    return res.status(401).json({ error: "Invalid credentials" });
-  }
-
-  const token = jwt.sign(
-    { sub: username, role: "admin" },
-    secret,
-    { expiresIn: "1h" }
-  );
-
-  return res.status(200).json({ token });
 });
 
 export default router;
-

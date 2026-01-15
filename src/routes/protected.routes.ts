@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { requireAuth } from "../middlewares/auth";
+import { authenticateJWT } from "../middlewares/auth";
 
 const router = Router();
 
-router.get("/ping", requireAuth, (req, res) => {
+router.get("/ping", authenticateJWT, (req, res) => {
   return res.status(200).json({ ok: true, message: "pong" });
 });
 

@@ -1,10 +1,15 @@
+import "./models";
+import "./db";
+import dotenv from "dotenv";
+dotenv.config();
 import express from 'express';
 import { healthRouter } from './routes/health.routes';
 import authRoutes from './routes/auth.routes';
 import protectedRoutes from './routes/protected.routes';
 import { errorHandler } from './middlewares/errorHandler';
 
-export const app = express();
+const app = express();
+export default app;
 
 app.use(express.json());
 
