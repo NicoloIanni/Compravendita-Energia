@@ -1,3 +1,4 @@
+import { InferAttributes } from "sequelize";
 import {
   Table,
   Model,
@@ -8,7 +9,9 @@ import {
 } from "sequelize-typescript";
 
 @Table({ tableName: "Users" })
-export default class User extends Model<User> {
+export default class User extends Model<
+InferAttributes <User>,
+InferAttributes <User>> {
   @Column({
     type: DataType.STRING,
     allowNull: false,

@@ -1,3 +1,4 @@
+
 import {
   Table,
   Model,
@@ -6,9 +7,12 @@ import {
   ForeignKey,
   BelongsTo,
 } from "sequelize-typescript";
+import type { InferAttributes, InferCreationAttributes } from "sequelize";
 
 @Table({ tableName: "ProducerSlots" })
-export default class ProducerSlot extends Model<ProducerSlot> {
+export default class ProducerSlot extends Model <
+InferAttributes <ProducerSlot>,
+InferCreationAttributes <ProducerSlot>> {
   @ForeignKey(() => require("./ProducerProfile").default)
   @Column(DataType.INTEGER)
   producerProfileId!: number;
