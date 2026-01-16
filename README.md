@@ -1,8 +1,5 @@
 # Compravendita Energia ⚡️
 
-Backend REST per una piattaforma di **compravendita di energia elettrica “oggi per domani” (T+1)**:  
-i **produttori** pubblicano capacità e prezzo su **slot da 1 ora** per il giorno successivo, i **consumatori** prenotano energia usando **credito/token**, e il produttore può **risolvere** le richieste applicando (se serve) un **taglio proporzionale**.
-
 ---
 
 ## Indice
@@ -16,7 +13,7 @@ i **produttori** pubblicano capacità e prezzo su **slot da 1 ora** per il giorn
 - [Test](#test)
 - [Postman & Newman](#postman--newman)
 - [UML](#uml)
-- [Desing Pattern](#desing-pattern)
+- [Design Pattern](#design-pattern)
 - [Roadmap](#roadmap)
 - [Autori](#autori)
 
@@ -30,6 +27,8 @@ L’obiettivo è realizzare un’applicazione che:
 - Consente ai consumatori di fare **prenotazioni** (con vincoli e regole temporali)
 - Gestisce credito, addebiti, rimborsi e concorrenza in modo **consistente** (transaction DB)
 - Produce **statistiche** su occupazione, vendite, ricavi e **carbon footprint**
+ 
+L’applicazione è progettata come **API REST**, con particolare attenzione agli aspetti di autenticazione, autorizzazione, correttezza delle operazioni e verificabilità del comportamento tramite test automatici.
 
 ---
 
@@ -93,7 +92,7 @@ Il sistema calcola CO₂ come:
 
 ---
 
-## Struttura repository DA AGGIORNARE
+## Struttura repository DA AGGIORNARE, SERVE?
 ```text
 .
 ├─ docker-compose.yaml
@@ -101,16 +100,30 @@ Il sistema calcola CO₂ come:
 ├─ .env
 ├─ package.json
 ├─ tsconfig.json
+├─ postman
+│  ├─ CompravenditaEnergia.postman_collection.json
+│  └─ CompravenditaEnergia.postman_environment.json
+├─ docs
+│  └─ uml
+│     └─ img
+│        ├─ use-case.png
+│        ├─ reservation.png
+│        └─ Sequence-cancel.png
 └─ src
    ├─ app.ts
    ├─ server.ts
    ├─ config
    │  ├─ env.ts
    │  └─ db.ts
-   ├─ routes
-   │  └─ health.routes.ts
    ├─ middlewares
+   │  ├─ auth.ts
    │  └─ errorHandler.ts
+   ├─ routes
+   │  ├─ health.routes.ts
+   │  ├─ auth.routes.ts
+   │  └─ protected.routes.ts
+   ├─ seed
+   │  └─ seed.ts
    └─ tests
       └─ health.test.ts
 ```
@@ -133,7 +146,7 @@ curl -i http://localhost:3000/health
 ```bash
 docker compose exec api npm run seed
 ```
-Risposta attesa: `200 OK` con JSON.
+Output atteso: messaggio di completamento dello script (seed eseguito correttamente).
 
 > Lo script di seed crea utenti base (admin/producer/consumer) con password hashate (bcrypt) per facilitare test e dimostrazioni.
 > Se il DB non parte, non è “sfortuna”: è quasi sempre `.env` sbagliato o volume rotto.  
@@ -153,6 +166,8 @@ npm run dev
 ---
 
 ## Test DA MODIFICARE
+I test automatici verificano che l’API risponda correttamente sugli endpoint principali e che i casi di errore siano gestiti in modo coerente.
+
 Esecuzione:
 ```bash
 npm test
@@ -188,7 +203,7 @@ npx newman run postman/CompravenditaEnergia.postman_collection.json \
 
 ### Endpoint coperti dalla collection
 - `GET /health` → `200 OK`
-- `POST /auth/login` → `200 OK` e ritorna `{ "token": "<JWT>" }` con credenziali valide
+- `POST /auth/login` → `200 OK` e ritorna `{ "accessToken": "<JWT>" }` con credenziali valide
 - `POST /auth/login` (wrong password) → `401 Unauthorized`
 - `POST /auth/login` (missing body) → `400 Bad Request`
 - `POST /auth/login` (missing password) → `400 Bad Request`
@@ -203,15 +218,20 @@ npx newman run postman/CompravenditaEnergia.postman_collection.json \
 npm i -D newman
 ```
 
-### Esecuzione test (con npx)
+### Esecuzione test (con npx) SERVE?
 ```bash
 npx newman run postman/CompravenditaEnergia.postman_collection.json \
   -e postman/CompravenditaEnergia.postman_environment.json
 ```
 ###OUTPUT ATTESO DA METTERE???
+La suite Newman deve completarsi senza errori (0 failed), confermando:
+- API raggiungibile (`/health`)
+- login valido produce un token JWT
+- casi negativi (`400/401`) gestiti correttamente
+- endpoint protetto accessibile solo con Bearer token valido
 
 ### Troubleshooting (le 3 cause tipiche)
-1. **401 su /auth/login** → credenziali sbagliate o env non caricate nel container (`ADMIN_USER`, `ADMIN_PASS`).
+1. 1. **401 su /auth/login** → credenziali non valide (variabili Postman `admin_email`, `admin_password`) oppure utenti di test non inizializzati tramite seed.
 2. **401 su /protected/ping** → token non salvato (login fallito) o `JWT_SECRET` diverso tra generazione e verify.
 3. **404 sulle route** → avete montato male i router o avete messo l’`errorHandler` prima delle route (in Express l’ordine conta).
 
