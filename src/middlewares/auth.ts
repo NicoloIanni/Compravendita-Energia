@@ -1,8 +1,13 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
+// Estendiamo il Request per includere profileId
 export interface AuthRequest extends Request {
-  user?: { userId: number; role: string };
+  user?: {
+    userId: number;
+    profileId: number; // aggiunto
+    role: string;
+  };
 }
 
 export const authenticateJWT = (
@@ -18,22 +23,27 @@ export const authenticateJWT = (
 
   const token = authHeader.split(" ")[1];
 
-try {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    return res.status(500).json({ error: "JWT_SECRET not set" });
+  try {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      return res.status(500).json({ error: "JWT_SECRET not set" });
+    }
+
+    const payload = jwt.verify(token, secret) as any;
+
+    // 🧠 Attenzione qui: assicuriamoci che il JWT includa anche profileId
+    if (!payload.userId || !payload.role || !payload.profileId) {
+      return res.status(401).json({ error: "Token privo di claims necessari" });
+    }
+
+    req.user = {
+      userId: payload.userId,
+      profileId: payload.profileId, // ora corretto
+      role: payload.role,
+    };
+
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: "Token non valido" });
   }
-
-  const payload = jwt.verify(token, secret) as any;
-
-  req.user = {
-    userId: payload.userId,
-    role: payload.role,
-  };
-
-  next();
-} catch (err) {
-  return res.status(401).json({ error: "Token non valido" });
-}
-
 };
