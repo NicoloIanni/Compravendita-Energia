@@ -8,6 +8,7 @@
 - [Regole di dominio](#regole-di-dominio)
 - [Stack](#stack)
 - [Struttura repository](#struttura-repository)
+- [API](#api)
 - [Avvio rapido (Docker)](#avvio-rapido-docker)
 - [Avvio in dev (opzionale)](#avvio-in-dev-opzionale)
 - [Test](#test)
@@ -122,11 +123,56 @@ Il sistema calcola CO₂ come:
    │  ├─ health.routes.ts
    │  ├─ auth.routes.ts
    │  └─ protected.routes.ts
+   ├─ services
+   │  └─ producerSlotService.ts
+   ├─ repositories
+   │  └─ producerSlotRepository.ts
+   ├─ controller
+   │  └─ producerSlotsController.ts
    ├─ seed
    │  └─ seed.ts
    └─ tests
-      └─ health.test.ts
+      ├─ health.test.ts
+      ├─ producerSlots.capacity.test.ts
+      └─ producerSlots.price.test.ts
 ```
+
+---
+## API DA AGGIORNARE
+
+Questa sezione descrive gli endpoint relativi alla gestione della **capacità** e del **prezzo** degli slot energetici per i produttori. Sono illustrate le rotte disponibili, i requisiti di autenticazione/autorizzazione, le regole di validazione e alcuni esempi di richiesta/risposta.
+
+### Rotte DA MODIFICARE
+Di seguito un riepilogo delle rotte principali implementate nel progetto:
+
+| Metodo | Percorso | Descrizione |
+|--------|----------|-------------|
+| `PATCH` | `/producers/me/slots/capacity` | Aggiorna in batch la capacità degli slot (kWh) per un producer autenticato |
+| `PATCH` | `/producers/me/slots/price` | Aggiorna in batch il prezzo degli slot (€/kWh o token/kWh) per un producer autenticato |
+
+## Comportamento dei controller
+
+I controller relativi alle rotte sopra seguono queste regole:
+
+- **Autenticazione JWT obbligatoria**
+  - Il token deve essere inviato nell’header `Authorization: Bearer <token>`
+  - Se manca o è invalido → `401 Unauthorized`
+
+- **Autorizzazione per ruolo `producer`**
+  - Solo utenti con `role: "producer"` possono aggiornare slot
+  - Caso negativo → `403 Forbidden`
+
+- **Validazione dei dati**
+  - Per ogni slot passato nel body vengono verificati:
+    - `date` presente e formato valido
+    - `hour` tra 0 e 23
+    - `capacityKwh` >= 0 (per capacity)
+    - `pricePerKwh` >= 0 (per price)
+  - In caso di input non valido → `400 Bad Request` con messaggio esplicativo
+
+- **Transazioni atomiche**
+  - Tutti gli aggiornamenti vengono eseguiti in una transazione
+  - Se anche un singolo elemento è invalido, **nessuna modifica viene applicata**
 
 ---
 
@@ -162,7 +208,6 @@ Se vuoi lanciare Node fuori da Docker:
 npm install
 npm run dev
 ```
-
 ---
 
 ## Test DA MODIFICARE
@@ -172,7 +217,73 @@ Esecuzione:
 ```bash
 npm test
 ```
+La suite di test automatici include scenari che verificano il comportamento corretto delle API per l’aggiornamento di capacity e price, tenendo conto sia dei casi validi che di alcuni casi di errore.
 
+Di seguito alcuni esempi rappresentativi:
+
+#### 🟢 Test – Capacity aggiornata correttamente
+
+Questo test verifica che l’endpoint di aggiornamento della capacity accetti un input valido e ritorni lo stato 200 OK, con conferma di successo.
+Assicura inoltre che il producer autenticato possa aggiornare correttamente la capacità dell’orario specificato.
+
+**Endpoint**: PATCH /producers/me/slots/capacity
+
+**Headers**: Authorization: Bearer <JWT>, Content-Type: application/json
+
+**Body**:
+```json
+[
+  { "date": "2026-01-20", "hour": 10, "capacityKwh": 50 }
+]
+```
+Expected Response: HTTP/1.1 200 OK
+```json
+[
+  { "success": true }
+]
+```
+
+#### 🔴 Test – Price non valido: hour fuori range
+Questo test verifica che l’endpoint price rifiuti correttamente un valore di hour fuori dal range accettato (0–23).
+Il server ritorna 400 Bad Request con messaggio di errore esplicativo.
+
+**Endpoint**: PATCH /producers/me/slots/capacity
+
+**Headers**: Authorization: Bearer <JWT>, Content-Type: application/json
+
+**Body**:
+```json
+[
+  { "date": "2026-03-10", "hour": 25, "pricePerKwh": 20 }
+]
+```
+Expected Response: HTTP/1.1 400 Bad Request
+```json
+[
+  { "error": "hour deve essere tra 0 e 23" }
+]
+```
+
+#### 🛑 Test – Ruolo non autorizzato (non producer)
+Questo test verifica che un utente autenticato con ruolo diverso da producer
+non possa aggiornare capacity/price e riceva 403 Forbidden.
+
+**Endpoint**: PATCH /producers/me/slots/price
+
+**Headers**: Authorization: Bearer <JWT (ruolo non producer)>, Content-Type: application/json
+
+**Body**:
+```json
+[
+  { "date": "2026-03-10", "hour": 14, "pricePerKwh": 30 }
+]
+```
+Expected Response: HTTP/1.1 403 Forbidden
+```json
+[
+  { "error": "Accesso non consentito" }
+]
+```
 ---
 
 ## Postman & Newman
