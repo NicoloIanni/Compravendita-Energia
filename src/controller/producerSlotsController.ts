@@ -10,9 +10,16 @@ export const patchCapacity = async (
 ) => {
   const body: any[] = req.body;
   const profileId = req.user?.profileId;
+  const role = req.user?.role;
 
+  // 401 se non autenticato
   if (!profileId) {
     return res.status(401).json({ error: "Producer non autenticato" });
+  }
+
+  // 403 se non producer
+  if (role !== "producer") {
+    return res.status(403).json({ error: "Accesso non consentito" });
   }
 
   let t: Transaction | null = null;
@@ -38,9 +45,16 @@ export const patchPrice = async (
 ) => {
   const body: any[] = req.body;
   const profileId = req.user?.profileId;
+  const role = req.user?.role;
 
+  // 401 se non autenticato
   if (!profileId) {
     return res.status(401).json({ error: "Producer non autenticato" });
+  }
+
+  // controllo ruolo producer anche qui
+  if (role !== "producer") {
+    return res.status(403).json({ error: "Accesso non consentito" });
   }
 
   let t: Transaction | null = null;

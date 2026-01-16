@@ -6,9 +6,12 @@ import {
   ForeignKey,
   BelongsTo,
 } from "sequelize-typescript";
+import type { InferAttributes, InferCreationAttributes } from "sequelize";
 
 @Table({ tableName: "Reservations" })
-export default class Reservation extends Model<Reservation> {
+export default class Reservation extends Model<
+InferAttributes<Reservation>,
+InferCreationAttributes<Reservation>>  {
   @ForeignKey(() => require("./User").default)
   @Column(DataType.INTEGER)
   consumerId!: number;
