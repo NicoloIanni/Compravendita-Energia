@@ -2,6 +2,8 @@ import { Router } from "express";
 import bcrypt from "bcrypt";
 import * as jwt from "jsonwebtoken";
 import User from "../models/User";
+import ProducerProfile from "../models/ProducerProfile";
+
 
 const router = Router();
 
@@ -22,13 +24,29 @@ router.post("/login", async (req, res) => {
       return res.status(500).json({ error: "Configurazione server errata" });
     }
 
-    const secret: jwt.Secret = process.env.JWT_SECRET;
+    const payload: any = {
+      userId: user.id,
+      role: user.role,
+    };
 
-    const accessToken = jwt.sign(
-      { userId: user.id, role: user.role },
-      secret,
-      { expiresIn: 3600 } // 1 ora in secondi
-    );
+    // 🔥 SOLO SE PRODUCER → carico profileId
+    if (user.role === "producer") {
+      const profile = await ProducerProfile.findOne({
+        where: { userId: user.id },
+      });
+
+      if (!profile) {
+        return res
+          .status(500)
+          .json({ error: "Producer senza profile associato" });
+      }
+
+      payload.profileId = profile.id;
+    }
+
+    const accessToken = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
 
     return res.json({ accessToken });
   } catch (err) {
@@ -36,5 +54,6 @@ router.post("/login", async (req, res) => {
     return res.status(500).json({ error: "Errore interno" });
   }
 });
+
 
 export default router;

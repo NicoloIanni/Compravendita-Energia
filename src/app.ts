@@ -1,3 +1,4 @@
+import "./routes/consumer.routes";
 import "./models";
 import "./db";
 import dotenv from "dotenv";
@@ -13,6 +14,7 @@ import {
   patchCapacity,
   patchPrice,
 } from "./controller/producerSlotsController";
+import consumerRoutes from "./routes/consumer.routes";
 
 const app = express();
 
@@ -33,11 +35,14 @@ app.patch(
 );
 
 // ➤ altre route
+
+
+app.use(consumerRoutes);
 app.use(healthRouter);
 app.use("/auth", authRoutes);
 app.use("/protected", protectedRoutes);
 
-// ➤ ERRORE handler (SEMPRRE ultimo)
+// ➤ ERRORE handler (SEMPRE ultimo)
 app.use(errorHandler);
 
 export default app;

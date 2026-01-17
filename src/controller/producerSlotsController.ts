@@ -9,6 +9,11 @@ export const patchCapacity = async (
   next: NextFunction
 ) => {
   const body: any[] = req.body;
+  if (!Array.isArray(body)) {
+  return res.status(400).json({
+    error: "Request body must be an array of slots"
+  });
+}
   const profileId = req.user?.profileId;
   const role = req.user?.role;
 
@@ -44,6 +49,11 @@ export const patchPrice = async (
   next: NextFunction
 ) => {
   const body: any[] = req.body;
+  if (!Array.isArray(body)) {
+  return res.status(400).json({
+    error: "Request body must be an array of slots"
+  });
+}
   const profileId = req.user?.profileId;
   const role = req.user?.role;
 

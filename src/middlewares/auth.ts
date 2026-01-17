@@ -1,17 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
-// Estendiamo il Request per includere profileId
-export interface AuthRequest extends Request {
-  user?: {
-    userId: number;
-    profileId: number; // aggiunto
-    role: string;
-  };
-}
-
 export const authenticateJWT = (
-  req: AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ) => {
@@ -31,19 +22,26 @@ export const authenticateJWT = (
 
     const payload = jwt.verify(token, secret) as any;
 
-    // 🧠 Attenzione qui: assicuriamoci che il JWT includa anche profileId
-    if (!payload.userId || !payload.role || !payload.profileId) {
+    if (!payload.userId || !payload.role) {
       return res.status(401).json({ error: "Token privo di claims necessari" });
     }
 
+    // user base (valido per tutti)
     req.user = {
       userId: payload.userId,
-      profileId: payload.profileId, // ora corretto
       role: payload.role,
     };
 
+    // solo producer ha profileId
+    if (payload.role === "producer") {
+      if (!payload.profileId) {
+        return res.status(401).json({ error: "Producer token senza profileId" });
+      }
+      req.user.profileId = payload.profileId;
+    }
+
     next();
-  } catch (err) {
+  } catch {
     return res.status(401).json({ error: "Token non valido" });
   }
 };

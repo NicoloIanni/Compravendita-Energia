@@ -1,0 +1,340 @@
+{
+  "info": {
+    "_postman_id": "be1e09df-ba66-437d-9bc0-876726f84361",
+    "name": "Compravendita Energia - Base",
+    "description": "Collection minima per dimostrare Newman: health + login + test negativi + endpoint protetto con Bearer token.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ],
+            "id": "6a2dbfb8-949b-465c-b08a-f0e7627fbae5"
+          }
+        }
+      ],
+      "id": "4c02a6da-a3db-4528-8147-56dd3565ee1d",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Auth - Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "let json;",
+              "pm.test('Response is valid JSON', function () {",
+              "json= pm.response.json();",
+              "pm.expect(json).to.be.an('object');",
+              "});",
+              "",
+              "pm.test('accessToken exists', function () {",
+              "  pm.expect(json).to.have.property('accessToken');",
+              "  pm.expect(json.accessToken).to.be.a('string').and.not.empty;",
+              "});",
+              "",
+              "pm.environment.set('jwt_token', json.accessToken);"
+            ],
+            "id": "901791a8-d846-46be-9ef7-c4aed1c234d3"
+          }
+        }
+      ],
+      "id": "0f5adad5-a978-4169-a8e0-0ce896519150",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "description": "Deve restituire JSON con campo token. Esempio: {\"token\":\"<JWT>\"}"
+      },
+      "response": []
+    },
+    {
+      "name": "Auth - Login (wrong password)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 401', function () {",
+              "  pm.response.to.have.status(401);",
+              "});"
+            ],
+            "id": "e35324c4-6495-446d-a54f-06fade72eabf"
+          }
+        }
+      ],
+      "id": "c437474d-de0e-4364-bae1-cb7b1e7e47da",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"wrong\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "description": "Login con password errata: deve restituire 401."
+      },
+      "response": []
+    },
+    {
+      "name": "Auth - Login (missing body)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ],
+            "id": "ae181e54-8fc4-4ab0-acfd-75ee8982e4db"
+          }
+        }
+      ],
+      "id": "bfbacb3c-6f10-4794-8bd4-6a9f356b65b4",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "description": "Login con body vuoto: deve restituire 400."
+      },
+      "response": []
+    },
+    {
+      "name": "Auth - Login (missing password)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ],
+            "id": "5751b518-6fcf-4bcb-8e95-cb204684fd39"
+          }
+        }
+      ],
+      "id": "b94283a1-785e-49b9-9379-6b0be7aba0e7",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{admin_email}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "description": "Login senza password: deve restituire 400."
+      },
+      "response": []
+    },
+    {
+      "name": "Protected - Dummy Ping",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('JWT is present in environment', function () {",
+              "  const jwtToken = pm.environment.get('jwt_token');",
+              "  pm.expect(jwtToken, 'Missing env var jwt_token: login probably failed').to.be.a('string').and.not.empty;",
+              "  if (!pm.environment.get('jwt_token') && pm.environment.get('jwt')) {",
+              "    pm.environment.set('jwt_token', pm.environment.get('jwt'));",
+              "  }",
+              "});"
+            ],
+            "id": "24393244-a9ab-4677-bdcd-6c9b2f719c01"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ],
+            "id": "72298771-e1d6-4d62-bfe0-898e77c49f62"
+          }
+        }
+      ],
+      "id": "df33734d-bce6-49b1-8d0f-2ababd1c6e7f",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/protected/ping",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "protected",
+            "ping"
+          ]
+        },
+        "description": "Endpoint dummy protetto: richiede JWT valido. Deve rispondere 200 se autorizzato."
+      },
+      "response": []
+    },
+    {
+      "name": "Protected - Ping (missing token)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 401', function () {",
+              "  pm.response.to.have.status(401);",
+              "});"
+            ],
+            "id": "48922f89-07fe-4320-8849-696b8bc68ca2"
+          }
+        }
+      ],
+      "id": "021b0c34-5f14-40e7-a7fd-ad8f125305ae",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/protected/ping",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "protected",
+            "ping"
+          ]
+        },
+        "description": "Ping protetto senza Authorization header: deve restituire 401."
+      },
+      "response": []
+    }
+  ]
+}
