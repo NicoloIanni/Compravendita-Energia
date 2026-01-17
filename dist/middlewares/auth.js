@@ -17,13 +17,24 @@ const authenticateJWT = (req, res, next) => {
             return res.status(500).json({ error: "JWT_SECRET not set" });
         }
         const payload = jsonwebtoken_1.default.verify(token, secret);
+        if (!payload.userId || !payload.role) {
+            return res.status(401).json({ error: "Token privo di claims necessari" });
+        }
+        // user base (valido per tutti)
         req.user = {
             userId: payload.userId,
             role: payload.role,
         };
+        // solo producer ha profileId
+        if (payload.role === "producer") {
+            if (!payload.profileId) {
+                return res.status(401).json({ error: "Producer token senza profileId" });
+            }
+            req.user.profileId = payload.profileId;
+        }
         next();
     }
-    catch (err) {
+    catch {
         return res.status(401).json({ error: "Token non valido" });
     }
 };

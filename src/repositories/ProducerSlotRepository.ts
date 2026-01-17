@@ -20,4 +20,19 @@ export class ProducerSlotRepository {
 
     await Promise.all(ops);
   }
+   async findByProducerDateHour(
+    producerProfileId: number,
+    date: string,
+    hour: number,
+    transaction?: Transaction
+  ): Promise<ProducerSlot | null> {
+    return this.model.findOne({
+      where: {
+        producerProfileId,
+        date,
+        hour,
+      },
+      transaction,
+    });
+  }
 }

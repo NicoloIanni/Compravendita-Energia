@@ -40,6 +40,7 @@ const express_1 = require("express");
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const jwt = __importStar(require("jsonwebtoken"));
 const User_1 = __importDefault(require("../models/User"));
+const ProducerProfile_1 = __importDefault(require("../models/ProducerProfile"));
 const router = (0, express_1.Router)();
 router.post("/login", async (req, res) => {
     try {
@@ -56,9 +57,25 @@ router.post("/login", async (req, res) => {
         if (!process.env.JWT_SECRET) {
             return res.status(500).json({ error: "Configurazione server errata" });
         }
-        const secret = process.env.JWT_SECRET;
-        const accessToken = jwt.sign({ userId: user.id, role: user.role }, secret, { expiresIn: 3600 } // 1 ora in secondi
-        );
+        const payload = {
+            userId: user.id,
+            role: user.role,
+        };
+        // 🔥 SOLO SE PRODUCER → carico profileId
+        if (user.role === "producer") {
+            const profile = await ProducerProfile_1.default.findOne({
+                where: { userId: user.id },
+            });
+            if (!profile) {
+                return res
+                    .status(500)
+                    .json({ error: "Producer senza profile associato" });
+            }
+            payload.profileId = profile.id;
+        }
+        const accessToken = jwt.sign(payload, process.env.JWT_SECRET, {
+            expiresIn: "1h",
+        });
         return res.json({ accessToken });
     }
     catch (err) {
