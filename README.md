@@ -24,12 +24,20 @@
 L’obiettivo è realizzare un’applicazione che:
 
 - Gestisce utenti con ruoli (**admin / producer / consumer**)
-- Consente ai produttori di definire per ogni ora di domani **capacità (kWh)** e **prezzo (€/kWh o token/kWh)**
-- Consente ai consumatori di fare **prenotazioni** (con vincoli e regole temporali)
-- Gestisce credito, addebiti, rimborsi e concorrenza in modo **consistente** (transaction DB)
+- Consente ai produttori di definire per ogni ora **capacità (kWh)** e **prezzo (credit/kWh)**
+- Consente ai consumatori di creare **prenotazioni di energia**
+- Gestisce il **credito** dei consumatori con addebiti atomici (transaction DB)
+- Gestisce concorrenza e consistenza in presenza di richieste simultanee
 - Produce **statistiche** su occupazione, vendite, ricavi e **carbon footprint**
- 
-L’applicazione è progettata come **API REST**, con particolare attenzione agli aspetti di autenticazione, autorizzazione, correttezza delle operazioni e verificabilità del comportamento tramite test automatici.
+
+Le prenotazioni dei consumatori **non vengono risolte automaticamente**:  
+ogni prenotazione nasce in stato **PENDING** e sarà successivamente gestita dal producer
+(taglio proporzionale, allocazione, rimborsi).
+
+L’applicazione è progettata come **API REST**, con particolare attenzione a:
+- autenticazione e autorizzazione (JWT)
+- regole di dominio esplicite
+- verificabilità del comportamento tramite test automatici
 
 ---
 
@@ -48,8 +56,8 @@ Ogni slot è identificato da:
 - `date` (YYYY-MM-DD)
 - `hour` (0–23)
 
-### Credito / token
-- il consumer ha un saldo
+### Credito
+- il consumer ha un saldo **credit**
 - la prenotazione **scala** il credito (in transaction)
 - cancellazioni/modifiche possono generare **rimborsi** in base alle regole
 
@@ -65,20 +73,29 @@ Il sistema calcola CO₂ come:
 ---
 
 ## Regole di dominio
-- **Prenotazione solo entro una finestra temporale**:
-  Uno slot è prenotabile solo se **mancano almeno 24h** all’inizio dello slot.  
-  (Scelta progettuale: usiamo `slotStart - now >= 24h`)
 
-- **Cancellazione/Modifica**:
-  Stessa regola temporale: fuori finestra → niente rimborso (o regola definita), dentro finestra → rimborso secondo policy.
+- **Prenotazione vincolata alla finestra temporale (24h)**  
+  Uno slot è prenotabile **solo se l’inizio dello slot è strettamente oltre 24 ore rispetto al momento attuale**.  
+  Implementazione: `slotStart > now + 24h`
 
-- **Consistenza con richieste concorrenti**:
-  Credito e prenotazioni sono “soldi finti”, ma il problema è reale: due richieste contemporanee possono rompere tutto.  
-  → usiamo **transaction** e lock dove serve.
+- **Slot esistente**
+  Una prenotazione può essere creata solo se esiste uno slot per:
+  - `producerProfileId`
+  - `date`
+  - `hour`  
+  In caso contrario → errore `SLOT_NOT_FOUND`
 
-- **Risoluzione NON automatica**:
-   - Le prenotazioni vengono create in stato **PENDING**
-   - la risoluzione (ALLOCATED / taglio) avviene con un endpoint del producer
+- **Credito sufficiente**
+  Il consumer deve avere credito ≥ costo totale (`requestedKwh * pricePerKwh`)  
+  In caso contrario → errore `INSUFFICIENT_CREDIT`
+
+- **Prenotazioni concorrenti**
+  La creazione della prenotazione e la scalatura del credito avvengono in **un’unica transaction**
+  per evitare race condition.
+
+- **Stato iniziale**
+  Ogni prenotazione nasce con stato **PENDING**.
+  L’allocazione effettiva (ALLOCATED / taglio proporzionale) è demandata a un’azione del producer.
 
 ---
 
@@ -136,43 +153,59 @@ Il sistema calcola CO₂ come:
       ├─ producerSlots.capacity.test.ts
       └─ producerSlots.price.test.ts
 ```
-
 ---
-## API DA AGGIORNARE
 
-Questa sezione descrive gli endpoint relativi alla gestione della **capacità** e del **prezzo** degli slot energetici per i produttori. Sono illustrate le rotte disponibili, i requisiti di autenticazione/autorizzazione, le regole di validazione e alcuni esempi di richiesta/risposta.
+## API
 
-### Rotte DA MODIFICARE
+Questa sezione descrive gli endpoint relativi alla gestione della **capacità** e del **prezzo** degli slot energetici per i produttori, e l’endpoint di **prenotazione** per i consumer. Sono illustrate le rotte disponibili, i requisiti di autenticazione/autorizzazione, le regole di validazione e il comportamento generale dei controller.
+
+### Rotte
 Di seguito un riepilogo delle rotte principali implementate nel progetto:
 
 | Metodo | Percorso | Descrizione |
 |--------|----------|-------------|
+| `POST`  | `/auth/login` | Login utente e generazione JWT |
+| `GET`   | `/health` | Healthcheck dell’API |
+| `GET`   | `/protected/ping` | Endpoint protetto di verifica JWT |
 | `PATCH` | `/producers/me/slots/capacity` | Aggiorna in batch la capacità degli slot (kWh) per un producer autenticato |
-| `PATCH` | `/producers/me/slots/price` | Aggiorna in batch il prezzo degli slot (€/kWh o token/kWh) per un producer autenticato |
+| `PATCH` | `/producers/me/slots/price` | Aggiorna in batch il prezzo degli slot (credit/kWh) per un producer autenticato |
+| `POST`  | `/consumers/me/reservations` | Crea una prenotazione di energia per un consumer autenticato (stato iniziale `PENDING`) |
 
-## Comportamento dei controller
+### Comportamento dei controller
 
 I controller relativi alle rotte sopra seguono queste regole:
 
-- **Autenticazione JWT obbligatoria**
+- **Autenticazione JWT obbligatoria (rotte protette)**
   - Il token deve essere inviato nell’header `Authorization: Bearer <token>`
   - Se manca o è invalido → `401 Unauthorized`
 
-- **Autorizzazione per ruolo `producer`**
-  - Solo utenti con `role: "producer"` possono aggiornare slot
+- **Autorizzazione per ruolo**
+  - Solo utenti con `role: "producer"` possono aggiornare slot capacity/price
+  - Solo utenti con `role: "consumer"` possono creare prenotazioni
   - Caso negativo → `403 Forbidden`
 
-- **Validazione dei dati**
+- **Validazione dei dati (slot producer)**
   - Per ogni slot passato nel body vengono verificati:
-    - `date` presente e formato valido
+    - `date` presente e formato valido (`YYYY-MM-DD`)
     - `hour` tra 0 e 23
     - `capacityKwh` >= 0 (per capacity)
     - `pricePerKwh` >= 0 (per price)
   - In caso di input non valido → `400 Bad Request` con messaggio esplicativo
 
-- **Transazioni atomiche**
+- **Transazioni atomiche (slot producer)**
   - Tutti gli aggiornamenti vengono eseguiti in una transazione
   - Se anche un singolo elemento è invalido, **nessuna modifica viene applicata**
+
+- **Regole di dominio (prenotazioni consumer)**
+  - La prenotazione viene creata solo se:
+    - lo slot esiste (`SLOT_NOT_FOUND` se non esiste)
+    - mancano almeno **24h** all’inizio dello slot (`SLOT_NOT_BOOKABLE_24H`)
+    - il consumer ha credito sufficiente (`INSUFFICIENT_CREDIT`)
+    - `requestedKwh` è valido (minimo > 0)
+  - Se la prenotazione va a buon fine:
+    - viene scalato il credito in modo consistente
+    - la prenotazione viene salvata in stato **`PENDING`**
+  - Tutta l’operazione avviene in **transaction** (creazione prenotazione + scalatura credito) per evitare inconsistenze con richieste concorrenti
 
 ---
 
@@ -211,7 +244,7 @@ npm run dev
 ---
 
 ## Test DA MODIFICARE
-I test automatici verificano che l’API risponda correttamente sugli endpoint principali e che i casi di errore siano gestiti in modo coerente.
+I test automatici verificano che l’API risponda correttamente sugli endpoint principali e che le **regole di dominio** siano applicate in modo consistente. Sono scritti con **Jest** e **Supertest** e vengono eseguiti contro l’API Express, con database reale (PostgreSQL) avviato tramite Docker.
 
 Esecuzione:
 ```bash
@@ -289,19 +322,31 @@ Expected Response: HTTP/1.1 403 Forbidden
 ## Postman & Newman
 
 ### Postman
-Postman è il modo più veloce per:
-- provare gli endpoint a mano (debug immediato)
-- salvare richieste in una **Collection** (documentazione eseguibile)
-- gestire variabili (base URL, token, ecc.)
+Postman è utilizzato per testare manualmente gli endpoint dell’API durante lo sviluppo,
+verificando rapidamente il comportamento delle rotte protette, delle validazioni
+e delle regole di dominio.
 
-In breve: Postman ti permette di “toccare” l’API mentre la costruisci, senza scrivere codice client.
+Nel progetto viene usato per:
+- testare il flusso di autenticazione JWT
+- verificare le rotte producer (capacity / price)
+- testare la creazione di prenotazioni lato consumer
+- salvare richieste in una **Collection** riutilizzabile
+
+Le richieste sono organizzate in una collection dedicata, con uso di variabili
+d’ambiente per:
+- base URL
+- credenziali di test
+- token JWT (salvato automaticamente dopo il login)
 
 ### Newman
-Newman è Postman **da linea di comando**.  
-Serve perché:
-- rende i test di API **ripetibili** e automatizzabili
-- permette di eseguire la collection in CI o comunque senza GUI
-- è spesso richiesto come parte della consegna: “non mi raccontare che funziona, fammelo girare”
+Newman è l’esecuzione **da linea di comando** delle collection Postman.
+Permette di rendere i test API:
+- ripetibili
+- automatizzabili
+- verificabili senza interfaccia grafica
+
+È particolarmente utile in fase di consegna, perché consente di dimostrare
+il corretto funzionamento dell’API in modo oggettivo.
 
 Esecuzione tipica:
 ```bash
@@ -312,17 +357,18 @@ npx newman run postman/CompravenditaEnergia.postman_collection.json \
 > Postman = test manuale e comodo.  
 > Newman = stesso test, ma automatizzato e ripetibile.
 
-### Endpoint coperti dalla collection
+### Alcuni Endpoint coperti dalla collection
 - `GET /health` → `200 OK`
 - `POST /auth/login` → `200 OK` e ritorna `{ "accessToken": "<JWT>" }` con credenziali valide
 - `POST /auth/login` (wrong password) → `401 Unauthorized`
-- `POST /auth/login` (missing body) → `400 Bad Request`
-- `POST /auth/login` (missing password) → `400 Bad Request`
 - `GET /protected/ping` (con token) → `200 OK`
-- `GET /protected/ping` (missing token) → `401 Unauthorized`
+- `PATCH /producers/me/slots/capacity` (producer + body valido) → `200 OK`
+- `PATCH /producers/me/slots/price` (validazione fallita) → `400 Bad Request`
+- `POST /consumers/me/reservations` (consumer + richiesta valida) → `201 Created` (prenotazione in stato `PENDING`)
 
 > Nota: la collection usa variabili d’ambiente Postman (`admin_email`, `admin_password`) e salva automaticamente il token in `jwt_token` (e per compatibilità anche in `jwt`).  
-> Se cambiano le credenziali di seed è necessario aggiornare le variabili nell’environment Postman.
+> Se cambiano le credenziali di seed è necessario aggiornare le variabili nell’environment Postman.  
+> Per le rotte protette, la collection usa `Authorization: Bearer {{jwt_token}}`.
 
 ### Installazione Newman (consigliata: locale al progetto)
 ```bash
@@ -342,82 +388,143 @@ La suite Newman deve completarsi senza errori (0 failed), confermando:
 - endpoint protetto accessibile solo con Bearer token valido
 
 ### Troubleshooting (le 3 cause tipiche)
-1. 1. **401 su /auth/login** → credenziali non valide (variabili Postman `admin_email`, `admin_password`) oppure utenti di test non inizializzati tramite seed.
+1. **401 su /auth/login** → credenziali non valide (variabili Postman `admin_email`, `admin_password`) oppure utenti di test non inizializzati tramite seed.
 2. **401 su /protected/ping** → token non salvato (login fallito) o `JWT_SECRET` diverso tra generazione e verify.
 3. **404 sulle route** → avete montato male i router o avete messo l’`errorHandler` prima delle route (in Express l’ordine conta).
 
 ---
+
 ## UML
+
 ### Use Case Diagram
-Il diagramma dei casi d’uso descrive gli attori del sistema (Admin, Producer, Consumer) e le principali funzionalità offerte dalla piattaforma.
+Il diagramma dei casi d’uso descrive gli attori del sistema (**Admin**, **Producer**, **Consumer**)
+e le principali funzionalità offerte dalla piattaforma.
+
+In particolare:
+- il **Producer** gestisce capacità e prezzo degli slot orari;
+- il **Consumer** può creare prenotazioni di energia soggette a vincoli temporali;
+- l’**Admin** inizializza il sistema (seed / creazione utenti).
 
 ![Use Case](docs/uml/img/use-case.png)
 
+---
+
 ### Sequence Diagram – Reservation
-Mostra il flusso di prenotazione dell’energia, inclusa la validazione del token e la scalatura del credito.
+Il diagramma di sequenza mostra il flusso completo di **creazione di una prenotazione** lato consumer.
+
+Sono evidenziati:
+- verifica del JWT e del ruolo `consumer`;
+- controllo della regola delle **24h**;
+- recupero dello slot del producer;
+- verifica del credito disponibile;
+- creazione della prenotazione in stato **`PENDING`**;
+- scalatura del credito del consumer.
+
+L’intero flusso avviene all’interno di una **transaction**, per garantire consistenza
+anche in presenza di richieste concorrenti.
 
 ![Reservation Sequence](docs/uml/img/reservation.png)
 
+---
+
 ### Sequence Diagram – Cancellation
-Descrive il processo di cancellazione di una prenotazione con eventuale rimborso o applicazione di penali.
+Il diagramma descrive il processo di cancellazione di una prenotazione,
+inclusa la valutazione della finestra temporale e l’eventuale rimborso.
+
+Questo flusso verrà completato nelle fasi successive del progetto
+(Day 5: modifica/cancellazione).
 
 ![Cancellation Sequence](docs/uml/img/Sequence-cancel.png)
 
-### Design Pattern
-L’architettura del progetto è stata pensata per separare chiaramente le responsabilità
-tra i vari livelli dell’applicazione, seguendo un approccio modulare e progressivo.
+---
 
-### 4.1 Middleware Pattern
+## Design Pattern
 
-Il **Middleware Pattern** è utilizzato per gestire funzionalità trasversali alle API,
-in particolare per l’autenticazione e l’autorizzazione degli utenti tramite JWT.
+L’architettura del progetto è progettata per separare chiaramente le responsabilità
+tra i vari livelli dell’applicazione, riducendo il coupling e rendendo il codice
+più testabile, manutenibile ed estendibile.
 
-Il middleware intercetta le richieste dirette agli endpoint protetti, verifica la
-presenza dell’header `Authorization` e la validità del Bearer token. In caso di
-token valido, la richiesta viene inoltrata al controller; in caso contrario viene
-restituita una risposta di errore appropriata.
+### Repository Pattern
 
-Questo approccio consente di centralizzare la logica di sicurezza, evitando
-duplicazioni di codice e mantenendo le rotte applicative focalizzate sulla sola
-logica funzionale.
+Il **Repository Pattern** è utilizzato per isolare l’accesso al database
+dalla logica di business, incapsulando l’uso diretto di Sequelize.
 
-### 4.2 Separation of Concerns
+Ogni repository espone metodi specifici per il dominio applicativo
+(es. recupero slot, creazione prenotazioni, aggiornamento credito),
+nascondendo i dettagli dell’ORM ai livelli superiori.
 
-Il progetto adotta una chiara **separazione delle responsabilità** tra i diversi
-moduli dell’applicazione, secondo i principi della *Separation of Concerns*.
+Questo approccio:
+- riduce il coupling con Sequelize;
+- rende i service più semplici da testare;
+- centralizza l’accesso ai dati.
 
-In particolare:
-- le **routes** gestiscono le richieste HTTP e la validazione di base degli input;
-- i **middlewares** implementano la logica trasversale (autenticazione, gestione errori);
-- il modulo **config** centralizza la configurazione di ambiente e database;
-- gli script di **seed** sono utilizzati per l’inizializzazione dei dati di test.
+Esempi nel progetto:
+- `UserRepository`
+- `ProducerSlotRepository`
+- `ReservationRepository`
 
-Questa organizzazione migliora la leggibilità del codice e semplifica la
-manutenzione e l’evoluzione del sistema.
+### Service Layer
 
-### 4.3 Pattern pianificati DA MODIFICARE
+Il **Service Layer** incapsula la logica di business e le **regole di dominio**
+dell’applicazione.
 
-Nelle fasi successive del progetto verranno introdotti ulteriori pattern
-architetturali per supportare la crescente complessità della logica di business.
+In particolare, i service:
+- validano input e condizioni di dominio;
+- coordinano più repository;
+- gestiscono le **transaction** Sequelize;
+- sollevano errori di dominio significativi.
 
-In particolare sono previsti:
-- il **Repository Pattern**, per isolare l’accesso ai dati e ridurre il coupling con Sequelize;
-- un **Service Layer**, per incapsulare la logica di business e le regole applicative;
-- lo **Strategy Pattern**, per gestire in modo flessibile le diverse politiche di
-  allocazione dell’energia.
+Esempi nel progetto:
+- `ProducerSlotService` (gestione capacity / price)
+- `ReservationService` (creazione prenotazioni consumer)
+
+Questo consente ai controller di rimanere sottili (*thin controllers*),
+limitandosi a:
+- leggere la richiesta HTTP;
+- delegare al service;
+- restituire la risposta.
+
+### Middleware Pattern
+
+Il **Middleware Pattern** è utilizzato per gestire funzionalità trasversali
+alle API, in particolare:
+
+- autenticazione JWT;
+- autorizzazione basata sul ruolo;
+- gestione centralizzata degli errori.
+
+I middleware intercettano le richieste dirette agli endpoint protetti,
+verificano la presenza e la validità del token, e arricchiscono la request
+con le informazioni dell’utente autenticato.
+
+Questo evita duplicazioni di codice e mantiene separata la logica di sicurezza
+dalla logica applicativa.
+
+### Strategy Pattern DA MODIFICARE
+
+Lo **Strategy Pattern** verrà introdotto nelle fasi successive del progetto
+per gestire in modo flessibile le politiche di allocazione dell’energia.
+
+In particolare sono previste:
+- una strategia **senza taglio** (richieste ≤ capacità);
+- una strategia di **taglio proporzionale lineare** (oversubscription).
+
+Questo approccio permetterà di estendere facilmente il sistema con nuove
+politiche di allocazione senza modificare la logica esistente.
+
 ---
 
 ## Roadmap
 - **Giorno 1**: repo + setup + docker-compose + health + stub auth + test base ✅
-- **Giorno 2**: modelli Sequelize + associazioni + seed + JWT reale
-- **Giorno 3**: producer slot capacity/price (batch) + validazioni
-- **Giorno 4**: consumer prenotazione PENDING + scala credito (transaction)
-- **Giorno 5**: modifica/cancellazione + regola 24h + refund/penale
+- **Giorno 2**: modelli Sequelize + associazioni + seed + JWT reale ✅
+- **Giorno 3**: producer slot capacity/price (batch) + validazioni ✅
+- **Giorno 4**: consumer prenotazione (`PENDING`) + regola 24h + scalatura credito (transaction) ✅
+- **Giorno 5**: modifica/cancellazione prenotazione + refund/penale
 - **Giorno 6**: producer view richieste + % occupazione
 - **Giorno 7**: resolve proporzionale + allocazioni + refund differenze (transaction)
-- **Giorno 8**: purchases filter + carbon + earnings + stats JSON
-- **Giorno 9**: 6 test Jest + Postman collection + Newman
-- **Giorno 10**: pulizia + UML finale + documentazione consegnabile
+- **Giorno 8**: purchases filter + carbon footprint + earnings + stats JSON
+- **Giorno 9**: test Jest completi + Postman collection + Newman
+- **Giorno 10**: pulizia finale + UML completo + documentazione consegnabile
 
 ---
 
