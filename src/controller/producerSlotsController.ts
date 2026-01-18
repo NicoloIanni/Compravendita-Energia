@@ -3,32 +3,33 @@ import type { Transaction } from "sequelize";
 import { sequelize } from "../config/db";
 import { producerSlotService } from "../services/producerSlotServiceInstance";
 
+function getProducerProfileId(req: Request): number {
+  if (!req.user?.profileId) {
+    const err = new Error("Producer profile missing");
+    (err as any).status = 403;
+    throw err;
+  }
+  return req.user.profileId;
+}
+
 export const patchCapacity = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
   const body: any[] = req.body;
+
   if (!Array.isArray(body)) {
-  return res.status(400).json({
-    error: "Request body must be an array of slots"
-  });
-}
-  const profileId = req.user?.profileId;
-  const role = req.user?.role;
-
-  // 401 se non autenticato
-  if (!profileId) {
-    return res.status(401).json({ error: "Producer non autenticato" });
-  }
-
-  // 403 se non producer
-  if (role !== "producer") {
-    return res.status(403).json({ error: "Accesso non consentito" });
+    return res.status(400).json({
+      error: "Request body must be an array of slots",
+    });
   }
 
   let t: Transaction | null = null;
+
   try {
+    const profileId = getProducerProfileId(req);
+
     t = await sequelize.transaction();
 
     await producerSlotService.batchUpdateCapacity(profileId, body, {
@@ -36,7 +37,7 @@ export const patchCapacity = async (
     });
 
     await t.commit();
-    return res.status(200).json({ success: true });
+    res.status(200).json({ success: true });
   } catch (err) {
     if (t) await t.rollback();
     next(err);
@@ -49,26 +50,18 @@ export const patchPrice = async (
   next: NextFunction
 ) => {
   const body: any[] = req.body;
+
   if (!Array.isArray(body)) {
-  return res.status(400).json({
-    error: "Request body must be an array of slots"
-  });
-}
-  const profileId = req.user?.profileId;
-  const role = req.user?.role;
-
-  // 401 se non autenticato
-  if (!profileId) {
-    return res.status(401).json({ error: "Producer non autenticato" });
-  }
-
-  // controllo ruolo producer anche qui
-  if (role !== "producer") {
-    return res.status(403).json({ error: "Accesso non consentito" });
+    return res.status(400).json({
+      error: "Request body must be an array of slots",
+    });
   }
 
   let t: Transaction | null = null;
+
   try {
+    const profileId = getProducerProfileId(req);
+
     t = await sequelize.transaction();
 
     await producerSlotService.batchUpdatePrice(profileId, body, {
@@ -76,7 +69,7 @@ export const patchPrice = async (
     });
 
     await t.commit();
-    return res.status(200).json({ success: true });
+    res.status(200).json({ success: true });
   } catch (err) {
     if (t) await t.rollback();
     next(err);

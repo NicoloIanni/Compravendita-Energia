@@ -22,10 +22,13 @@ function generateProducerToken(profileId: number, userId: number) {
 describe("PATCH /producers/me/slots/capacity — Capacity API", () => {
   let producerProfile: any;
   let token: string;
+  let consoleErrorSpy: jest.SpyInstance;
+
 
   beforeAll(async () => {
-
-
+      consoleErrorSpy = jest
+    .spyOn(console, "error")
+    .mockImplementation(() => {});
     await sequelize.sync({ force: true });
 
       const user = await User.create({
@@ -51,16 +54,15 @@ describe("PATCH /producers/me/slots/capacity — Capacity API", () => {
   });
 
   afterAll(async () => {
+    consoleErrorSpy.mockRestore();
     await sequelize.close();
   });
+
 
   beforeEach(async () => {
     // pulisce gli slot
     await ProducerSlot.destroy({ where: {} });
   });
-  afterAll(async () => {
-  await sequelize.close();
-});
 
   it("200 OK — aggiorna capacity per slot singolo", async () => {
     const res = await request(app)
@@ -183,8 +185,5 @@ describe("PATCH /producers/me/slots/capacity — Capacity API", () => {
       where: { producerProfileId: producerProfile.id },
     });
     expect(slots.length).toBe(0); // niente inserito
-  });
-    afterAll(async () => {
-    await sequelize.close();
   });
 });

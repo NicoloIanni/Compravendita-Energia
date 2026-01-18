@@ -11,10 +11,19 @@ const router = Router();
 const controller = new ConsumerReservationController(reservationService);
 
 router.post(
-  "/consumers/me/reservations",
+  "/me/reservations",
   authenticateJWT,
   roleMiddleware("consumer"),
   controller.createReservation
+);
+// =========================
+// Day 5 – UPDATE / CANCEL
+// =========================
+router.patch(
+  "/me/reservations/:id",
+  authenticateJWT,
+  roleMiddleware("consumer"),
+  controller.updateReservation
 );
 
 export default router;
