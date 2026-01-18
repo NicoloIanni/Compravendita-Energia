@@ -43,30 +43,30 @@ L’applicazione è progettata come **API REST**, con particolare attenzione a:
 
 ## Requisiti
 
-### Ruoli
+### 1. Ruoli
 - **Admin**: crea produttori e consumatori (seed o endpoint dedicato).
 - **Producer**: gestisce slot (capacità/prezzo), vede richieste, risolve allocazioni, consulta statistiche/ricavi.
 - **Consumer**: prenota/modifica/cancella, vede acquisti e impronta CO₂.
 
-### “Oggi per domani”
+### 2. “Oggi per domani”
 Per semplicità operativa, il sistema lavora su **slot del giorno successivo (domani)**.
 
-### Slot orario
+### 3. Slot orario
 Ogni slot è identificato da:
 - `date` (YYYY-MM-DD)
 - `hour` (0–23)
 
-### Credito
+### 4. Credito
 - il consumer ha un saldo **credit**
 - la prenotazione **scala** il credito (in transaction)
 - cancellazioni/modifiche possono generare **rimborsi** in base alle regole
 
-### Taglio proporzionale (oversubscription)
+### 5. Taglio proporzionale (oversubscription)
 Se la somma richiesta supera la capacità:
 - il producer applica un **taglio lineare proporzionale**
 - l’allocato può essere < richiesto → si rimborsa la differenza
 
-### Carbon footprint
+### 6. Carbon footprint
 Il sistema calcola CO₂ come:
 - `kWh * co2_g_per_kwh` (in grammi)
 
@@ -254,7 +254,7 @@ La suite di test automatici include scenari che verificano il comportamento corr
 
 Di seguito alcuni esempi rappresentativi:
 
-#### 🟢 Test – Capacity aggiornata correttamente
+#### 1. 🟢 Test – Capacity aggiornata correttamente
 
 Questo test verifica che l’endpoint di aggiornamento della capacity accetti un input valido e ritorni lo stato 200 OK, con conferma di successo.
 Assicura inoltre che il producer autenticato possa aggiornare correttamente la capacità dell’orario specificato.
@@ -276,7 +276,7 @@ Expected Response: HTTP/1.1 200 OK
 ]
 ```
 
-#### 🔴 Test – Price non valido: hour fuori range
+#### 2. 🔴 Test – Price non valido: hour fuori range
 Questo test verifica che l’endpoint price rifiuti correttamente un valore di hour fuori dal range accettato (0–23).
 Il server ritorna 400 Bad Request con messaggio di errore esplicativo.
 
@@ -297,7 +297,7 @@ Expected Response: HTTP/1.1 400 Bad Request
 ]
 ```
 
-#### 🛑 Test – Ruolo non autorizzato (non producer)
+#### 3. 🔴 Test – Ruolo non autorizzato (non producer)
 Questo test verifica che un utente autenticato con ruolo diverso da producer
 non possa aggiornare capacity/price e riceva 403 Forbidden.
 
