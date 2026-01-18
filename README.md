@@ -11,7 +11,6 @@
 - [API](#api)
 - [Configurazione](#configurazione)
 - [Avvio rapido (Docker)](#avvio-rapido-docker)
-- [Avvio in dev (opzionale)](#avvio-in-dev-opzionale)
 - [Test](#test)
 - [Postman & Newman](#postman--newman)
 - [UML](#uml)
