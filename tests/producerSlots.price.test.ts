@@ -30,7 +30,6 @@ describe("PATCH /producers/me/slots/price — Price API (with token)", () => {
     .spyOn(console, "error")
     .mockImplementation(() => {});
 
-    await sequelize.sync({ force: true });
 
     const user = await User.create({
       email: "prod@test.com",
