@@ -29,7 +29,6 @@ describe("PATCH /producers/me/slots/capacity — Capacity API", () => {
       consoleErrorSpy = jest
     .spyOn(console, "error")
     .mockImplementation(() => {});
-    await sequelize.sync({ force: true });
 
       const user = await User.create({
     email: "prod@example.com",
