@@ -9,6 +9,7 @@
 - [Stack](#stack)
 - [Struttura repository](#struttura-repository)
 - [API](#api)
+- [Configurazione](#configurazione)
 - [Avvio rapido (Docker)](#avvio-rapido-docker)
 - [Avvio in dev (opzionale)](#avvio-in-dev-opzionale)
 - [Test](#test)
@@ -209,38 +210,75 @@ I controller relativi alle rotte sopra seguono queste regole:
 
 ---
 
+## Configurazione
+
+Il progetto utilizza variabili d’ambiente per configurare l’API, la connessione al database
+e il sistema di autenticazione JWT.
+
+Le variabili vengono lette:
+- in **Docker Compose** tramite file `.env` / `.env.docker` (usato dal servizio `api`);
+- in **esecuzione locale (dev)** tramite un normale file `.env`.
+
+### Variabili richieste
+
+#### API
+- `PORT`: Porta su cui viene esposta l’API Express.  
+  Esempio: `3000`
+
+- `JWT_SECRET`: Segreto utilizzato per firmare e verificare i token JWT.  
+  **Obbligatoria**: se mancante, le rotte protette risponderanno con errore.
+
+#### Database (PostgreSQL)
+- `DB_HOST`  
+  Host del database  
+  - in Docker: `db`  
+  - in locale: `localhost`
+
+- `DB_PORT`: Porta del database PostgreSQL (default `5432`)
+
+- `DB_NAME`: Nome del database (nel progetto: `energy`)
+
+- `DB_USER`: Utente del database (nel progetto: `app`)
+
+- `DB_PASS`: Password del database (nel progetto: `app`)
+  
+---
+
 ## Avvio rapido (Docker)
 
-### 1) Avvia servizi
+### 1) Avvia i servizi
+Avvia l’API e il database PostgreSQL tramite Docker Compose:
 ```bash
 docker compose up --build
 ```
 
-### 2) Healthcheck
+### 2) Esegui le migration
+Crea tutte le tabelle necessarie nel database:
 ```bash
-curl -i http://localhost:3000/health
+docker compose exec api npm run migrate
 ```
 
-### 3) Seed utenti di test (sviluppo)
+### 3) Popola il database con dati di test (seed)
+Inserisce utenti e dati minimi utili per test manuali e dimostrazioni:
 ```bash
 docker compose exec api npm run seed
 ```
-Output atteso: messaggio di completamento dello script (seed eseguito correttamente).
+Il seed crea utenti base (admin / producer / consumer) con password hashate (bcrypt).
 
-> Lo script di seed crea utenti base (admin/producer/consumer) con password hashate (bcrypt) per facilitare test e dimostrazioni.
-> Se il DB non parte, non è “sfortuna”: è quasi sempre `.env` sbagliato o volume rotto.  
-> In quel caso: `docker compose down -v` e riparti.
-
----
-
-## Avvio in dev (opzionale)
-
-Se vuoi lanciare Node fuori da Docker:
-
+### 4) Verifica funzionamento (healthcheck)
 ```bash
-npm install
-npm run dev
+curl -i http://localhost:3000/health
 ```
+Risposta attesa: 200 OK.
+
+#### Troubleshooting rapido
+- Errori di connessione al database → verificare le variabili d’ambiente (DB_HOST, DB_NAME, DB_USER, DB_PASS).
+- Database in stato incoerente → ripartire da zero rimuovendo anche i volumi:
+```bash
+docker compose down -v
+docker compose up --build
+```
+
 ---
 
 ## Test DA MODIFICARE
