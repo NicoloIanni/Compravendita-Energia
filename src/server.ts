@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 import app  from './app';
 import { env } from './config/env';
-import { sequelize } from './config/db';
+import { sequelize } from './db';
 
 async function bootstrap() {
   await sequelize.authenticate(); // fail fast se DB non raggiungibile

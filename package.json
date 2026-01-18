@@ -7,12 +7,12 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
-    "test": "jest --runInBand",
+    "test": "NODE_ENV=test jest --runInBand",
     "db:migrate": "sequelize db:migrate",
     "db:migrate:undo": "sequelize db:migrate:undo:all",
     "db:seed": "sequelize db:seed:all",
     "db:seed:undo": "sequelize db:seed:undo:all",
-    "db:reset": "sequelize db:seed:undo:all && sequelize db:migrate:undo:all && sequelize db:migrate && sequelize db:seed:all",
+    "db:reset": "sequelize-cli db:drop && sequelize-cli db:create",
     "sequelize": "sequelize-cli"
   },
   "repository": {

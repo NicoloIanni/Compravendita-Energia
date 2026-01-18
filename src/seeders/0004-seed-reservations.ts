@@ -1,59 +1,65 @@
 import { QueryInterface } from "sequelize";
+import { addHours, format } from "date-fns";
 
-const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
-  .toISOString()
-  .split("T")[0];
+export default {
+  async up(queryInterface: QueryInterface) {
+    // 1️⃣ recupera consumer
+    const [[consumer]]: any = await queryInterface.sequelize.query(`
+      SELECT id, credit
+      FROM "Users"
+      WHERE role = 'consumer'
+      LIMIT 1;
+    `);
 
-export async function up(queryInterface: QueryInterface): Promise<void> {
-  // Consumer
-  const [consumerRows] = await queryInterface.sequelize.query(
-    `
-    SELECT id
-    FROM "Users"
-    WHERE email = 'consumer@example.com'
-    LIMIT 1;
-    `
-  );
+    if (!consumer) {
+      throw new Error("No consumer found for reservation seed");
+    }
 
-  const consumerId = (consumerRows as any[])[0]?.id;
-  if (!consumerId) {
-    throw new Error("Consumer non trovato per consumer@example.com");
-  }
+    // 2️⃣ recupera producer slot
+    const [[slot]]: any = await queryInterface.sequelize.query(`
+      SELECT *
+      FROM "ProducerSlots"
+      LIMIT 1;
+    `);
 
-  // ProducerProfile
-  const [ppRows] = await queryInterface.sequelize.query(
-    `
-    SELECT pp.id
-    FROM "ProducerProfiles" pp
-    JOIN "Users" u ON u.id = pp."userId"
-    WHERE u.email = 'producer@example.com'
-    LIMIT 1;
-    `
-  );
+    if (!slot) {
+      throw new Error("No producer slot found for reservation seed");
+    }
 
-  const producerProfileId = (ppRows as any[])[0]?.id;
-  if (!producerProfileId) {
-    throw new Error("ProducerProfile non trovato per producer@example.com");
-  }
+    // 3️⃣ dati reservation
+    const requestedKwh = 1;
+    const totalCost = requestedKwh * slot.pricePerKwh;
 
-  await queryInterface.bulkInsert("Reservations", [
-    {
-      consumerId,
-      producerProfileId,
-      date: tomorrow,
-      hour: 8,
-      requestedKwh: 20,
-      allocatedKwh: 20,
-      status: "ALLOCATED",
-      totalCostCharged: 20 * 0.15,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-  ]);
-}
+    if (consumer.credit < totalCost) {
+      throw new Error("Consumer has insufficient credit for seed reservation");
+    }
 
-export async function down(queryInterface: QueryInterface): Promise<void> {
-  await queryInterface.bulkDelete("Reservations", {
-    date: tomorrow,
-  });
-}
+    // 4️⃣ crea reservation (>24h garantito dal seed slot)
+    await queryInterface.bulkInsert("Reservations", [
+      {
+        consumerId: consumer.id,
+        producerProfileId: slot.producerProfileId,
+        date: slot.date,
+        hour: slot.hour,
+        requestedKwh,
+        allocatedKwh: 0,
+        status: "PENDING",
+        totalCostCharged: totalCost,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+
+    // 5️⃣ scala il credito del consumer
+    await queryInterface.sequelize.query(`
+      UPDATE "Users"
+      SET credit = credit - ${totalCost}
+      WHERE id = ${consumer.id};
+    `);
+  },
+
+  async down(queryInterface: QueryInterface) {
+    await queryInterface.bulkDelete("Reservations", {});
+  },
+};
+

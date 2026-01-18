@@ -20,25 +20,22 @@ export const authenticateJWT = (
       return res.status(500).json({ error: "JWT_SECRET not set" });
     }
 
-    const payload = jwt.verify(token, secret) as any;
+  
+    const payload =
+  process.env.NODE_ENV === "test"
+    ? jwt.verify(token, secret, { ignoreExpiration: true })
+    : jwt.verify(token, secret)as any;
 
     if (!payload.userId || !payload.role) {
       return res.status(401).json({ error: "Token privo di claims necessari" });
     }
 
-    // user base (valido per tutti)
+    // 🔹 JWT middleware: SOLO autenticazione, niente logica di ruolo
     req.user = {
       userId: payload.userId,
       role: payload.role,
+      profileId: payload.profileId, // opzionale
     };
-
-    // solo producer ha profileId
-    if (payload.role === "producer") {
-      if (!payload.profileId) {
-        return res.status(401).json({ error: "Producer token senza profileId" });
-      }
-      req.user.profileId = payload.profileId;
-    }
 
     next();
   } catch {

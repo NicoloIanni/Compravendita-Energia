@@ -4,16 +4,32 @@ import { sequelize } from "../src/config/db";
 import { ProducerProfile, ProducerSlot, User } from "../src/models";
 import jwt from "jsonwebtoken";
 
-function generateTestToken(profileId: number, userId: number, role = "producer") {
+function generateProducerToken(userId: number, profileId: number) {
   const secret = process.env.JWT_SECRET || "testsecret";
-  return jwt.sign({ userId, profileId, role }, secret);
+  return jwt.sign(
+    { userId, role: "producer", profileId },
+    secret
+  );
+}
+function generateConsumerToken(userId: number) {
+  const secret = process.env.JWT_SECRET || "testsecret";
+  return jwt.sign(
+    { userId, role: "consumer" },
+    secret
+  );
 }
 
 describe("PATCH /producers/me/slots/price — Price API (with token)", () => {
   let token: string;
   let producerProfile: any;
 
+  let consoleErrorSpy: jest.SpyInstance;
+
   beforeAll(async () => {
+      consoleErrorSpy = jest
+    .spyOn(console, "error")
+    .mockImplementation(() => {});
+
     await sequelize.sync({ force: true });
 
     const user = await User.create({
@@ -29,10 +45,12 @@ describe("PATCH /producers/me/slots/price — Price API (with token)", () => {
       co2_g_per_kwh: 100,
     });
 
-    token = generateTestToken(producerProfile.id, user.id, "producer");
-  });
+    token = generateProducerToken(user.id, producerProfile.id);
 
+  });
+    
   afterAll(async () => {
+    consoleErrorSpy.mockRestore();
     await sequelize.close();
   });
 
@@ -144,7 +162,8 @@ describe("PATCH /producers/me/slots/price — Price API (with token)", () => {
       role: "consumer",
       credit: 0,
     });
-    const badToken = generateTestToken(producerProfile.id, otherUser.id, "consumer");
+    const badToken = generateConsumerToken(otherUser.id);
+
 
     const body = [{ date: "2026-03-10", hour: 10, pricePerKwh: 25 }];
 
