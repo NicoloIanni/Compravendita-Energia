@@ -216,7 +216,7 @@ e il sistema di autenticazione JWT.
 
 Le variabili vengono lette:
 - in **Docker Compose** (servizio `api`) tramite i file indicati nella configurazione di Compose (`.env`);
-- in **esecuzione locale (dev)** tramite un file `.env`.
+- in **esecuzione locale (dev)** tramite il file `.env`.
 
 ### Variabili richieste
 
