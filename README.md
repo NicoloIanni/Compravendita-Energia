@@ -216,32 +216,31 @@ Il progetto utilizza variabili d’ambiente per configurare l’API, la connessi
 e il sistema di autenticazione JWT.
 
 Le variabili vengono lette:
-- in **Docker Compose** tramite file `.env` / `.env.docker` (usato dal servizio `api`);
-- in **esecuzione locale (dev)** tramite un normale file `.env`.
+- in **Docker Compose** (servizio `api`) tramite i file indicati nella configurazione di Compose (`.env`);
+- in **esecuzione locale (dev)** tramite un file `.env`.
 
 ### Variabili richieste
 
 #### API
-- `PORT`: Porta su cui viene esposta l’API Express.  
-  Esempio: `3000`
+- `PORT`: porta su cui viene esposta l’API Express.  
+  Esempio: `3000`.
 
-- `JWT_SECRET`: Segreto utilizzato per firmare e verificare i token JWT.  
-  **Obbligatoria**: se mancante, le rotte protette risponderanno con errore.
+- `JWT_SECRET`: segreto utilizzato per firmare e verificare i token JWT.  
+  **Obbligatoria**: se mancante, le rotte protette falliscono l’autenticazione.
 
 #### Database (PostgreSQL)
-- `DB_HOST`  
-  Host del database  
-  - in Docker: `db`  
-  - in locale: `localhost`
+- `DB_HOST`: host del database  
+  - in Docker: tipicamente `db`  
+  - in locale: tipicamente `localhost`
 
-- `DB_PORT`: Porta del database PostgreSQL (default `5432`)
+- `DB_PORT`: porta del database PostgreSQL (default `5432`)
 
-- `DB_NAME`: Nome del database (nel progetto: `energy`)
+- `DB_NAME`: nome del database (es. `energy`)
 
-- `DB_USER`: Utente del database (nel progetto: `app`)
+- `DB_USER`: utente del database (es. `app`)
 
-- `DB_PASS`: Password del database (nel progetto: `app`)
-  
+- `DB_PASS`: password del database (es. `app` in ambiente di sviluppo)
+
 ---
 
 ## Avvio rapido (Docker)
@@ -255,13 +254,13 @@ docker compose up --build
 ### 2) Esegui le migration
 Crea tutte le tabelle necessarie nel database:
 ```bash
-docker compose exec api npm run migrate
+docker compose exec api npx sequelize-cli db:migrate
 ```
 
 ### 3) Popola il database con dati di test (seed)
 Inserisce utenti e dati minimi utili per test manuali e dimostrazioni:
 ```bash
-docker compose exec api npm run seed
+docker compose exec api npx sequelize-cli db:seed:all
 ```
 Il seed crea utenti base (admin / producer / consumer) con password hashate (bcrypt).
 
@@ -288,7 +287,10 @@ Esecuzione:
 ```bash
 npm test
 ```
+Nota operativa: eseguendo npm test, ad ogni run avviene il reset completo del database e poi vengono eseguite automaticamente le migration e la seed (inizializzazione), così da garantire uno stato coerente e ripetibile ad ogni esecuzione della suite.
+
 La suite di test automatici include scenari che verificano il comportamento corretto delle API per l’aggiornamento di capacity e price, tenendo conto sia dei casi validi che di alcuni casi di errore.
+
 
 Di seguito alcuni esempi rappresentativi:
 
