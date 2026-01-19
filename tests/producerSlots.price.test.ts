@@ -1,6 +1,5 @@
 import request from "supertest";
 import app from "../src/app";
-import { sequelize } from "../src/config/db";
 import { ProducerProfile, ProducerSlot, User } from "../src/models";
 import jwt from "jsonwebtoken";
 
@@ -50,7 +49,6 @@ describe("PATCH /producers/me/slots/price — Price API (with token)", () => {
     
   afterAll(async () => {
     consoleErrorSpy.mockRestore();
-    await sequelize.close();
   });
 
   it("200 OK — aggiorna price per slot singolo", async () => {
