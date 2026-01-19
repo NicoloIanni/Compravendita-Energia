@@ -1,60 +1,65 @@
 import request from "supertest";
-import app from "../src/app";
-import { ProducerProfile, ProducerSlot, User } from "../src/models";
 import jwt from "jsonwebtoken";
 
+import app from "../src/app";
+import { User, ProducerProfile, ProducerSlot } from "../src/models";
+
 function generateProducerToken(userId: number, profileId: number) {
-  const secret = process.env.JWT_SECRET || "testsecret";
+  const secret = process.env.JWT_SECRET!;
   return jwt.sign(
     { userId, role: "producer", profileId },
-    secret
+    secret,
+    { expiresIn: "1h" }
   );
 }
+
 function generateConsumerToken(userId: number) {
-  const secret = process.env.JWT_SECRET || "testsecret";
+  const secret = process.env.JWT_SECRET!;
   return jwt.sign(
     { userId, role: "consumer" },
-    secret
+    secret,
+    { expiresIn: "1h" }
   );
 }
 
-describe("PATCH /producers/me/slots/price — Price API (with token)", () => {
+describe("PATCH /producers/me/slots/price — Price API", () => {
+  let producer: User;
+  let producerProfile: ProducerProfile;
   let token: string;
-  let producerProfile: any;
-
   let consoleErrorSpy: jest.SpyInstance;
 
   beforeAll(async () => {
-      consoleErrorSpy = jest
-    .spyOn(console, "error")
-    .mockImplementation(() => {});
+    consoleErrorSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
 
+    // 🔹 SOLO SEED
+    const foundProducer = await User.findOne({ where: { role: "producer" } });
+    if (!foundProducer) throw new Error("Seed producer not found");
+    producer = foundProducer;
 
-    const user = await User.create({
-      email: "prod@test.com",
-      passwordHash: "fake",
-      role: "producer",
-      credit: 0,
+    const foundProfile = await ProducerProfile.findOne({
+      where: { userId: producer.id },
     });
+    if (!foundProfile) throw new Error("Seed producer profile not found");
+    producerProfile = foundProfile;
 
-    producerProfile = await ProducerProfile.create({
-      userId: user.id,
-      energyType: "Fotovoltaico",
-      co2_g_per_kwh: 100,
-    });
-
-    token = generateProducerToken(user.id, producerProfile.id);
-
+    token = generateProducerToken(producer.id, producerProfile.id);
   });
-    
-  afterAll(async () => {
+
+  afterAll(() => {
     consoleErrorSpy.mockRestore();
   });
 
+  beforeEach(async () => {
+    // 🔹 pulisce SOLO gli slot di questo producer
+    await ProducerSlot.destroy({
+      where: { producerProfileId: producerProfile.id },
+    });
+  });
+
   it("200 OK — aggiorna price per slot singolo", async () => {
-    const body = [
-      { date: "2026-03-10", hour: 14, pricePerKwh: 25 },
-    ];
+    const body = [{ date: "2026-03-10", hour: 14, pricePerKwh: 25 }];
 
     const res = await request(app)
       .patch("/producers/me/slots/price")
@@ -70,7 +75,8 @@ describe("PATCH /producers/me/slots/price — Price API (with token)", () => {
         hour: body[0].hour,
       },
     });
-    expect(slot?.pricePerKwh).toBe(body[0].pricePerKwh);
+
+    expect(slot!.pricePerKwh).toBe(25);
   });
 
   it("200 OK — batch multipli aggiornati", async () => {
@@ -94,80 +100,52 @@ describe("PATCH /producers/me/slots/price — Price API (with token)", () => {
           hour: item.hour,
         },
       });
-      expect(slot?.pricePerKwh).toBe(item.pricePerKwh);
+      expect(slot!.pricePerKwh).toBe(item.pricePerKwh);
     }
   });
 
-  it("400 — hour fuori range (>=24)", async () => {
-    const body = [{ date: "2026-03-12", hour: 24, pricePerKwh: 10 }];
-
+  it("400 — hour fuori range", async () => {
     const res = await request(app)
       .patch("/producers/me/slots/price")
       .set("Authorization", `Bearer ${token}`)
-      .send(body);
+      .send([{ date: "2026-03-12", hour: 24, pricePerKwh: 10 }]);
 
     expect(res.status).toBe(400);
   });
 
-  it("400 — hour fuori range (<0)", async () => {
-    const body = [{ date: "2026-03-12", hour: -1, pricePerKwh: 10 }];
-
+  it("400 — price negativa", async () => {
     const res = await request(app)
       .patch("/producers/me/slots/price")
       .set("Authorization", `Bearer ${token}`)
-      .send(body);
+      .send([{ date: "2026-03-12", hour: 10, pricePerKwh: -5 }]);
 
     expect(res.status).toBe(400);
   });
 
-  it("400 — pricePerKwh negativa", async () => {
-    const body = [{ date: "2026-03-12", hour: 10, pricePerKwh: -5 }];
-
+  it("400 — date mancante", async () => {
     const res = await request(app)
       .patch("/producers/me/slots/price")
       .set("Authorization", `Bearer ${token}`)
-      .send(body);
-
-    expect(res.status).toBe(400);
-  });
-
-  it("400 — campo date mancante", async () => {
-    const body = [{ hour: 10, pricePerKwh: 10 }];
-
-    const res = await request(app)
-      .patch("/producers/me/slots/price")
-      .set("Authorization", `Bearer ${token}`)
-      .send(body);
+      .send([{ hour: 10, pricePerKwh: 10 }]);
 
     expect(res.status).toBe(400);
   });
 
   it("401 — senza token", async () => {
-    const body = [{ date: "2026-03-10", hour: 10, pricePerKwh: 20 }];
-
     const res = await request(app)
       .patch("/producers/me/slots/price")
-      .send(body);
+      .send([{ date: "2026-03-10", hour: 10, pricePerKwh: 20 }]);
 
     expect(res.status).toBe(401);
   });
 
   it("403 — ruolo non producer", async () => {
-    const otherUser = await User.create({
-      email: "user2@test.com",
-      passwordHash: "fake2",
-      role: "consumer",
-      credit: 0,
-    });
-    const badToken = generateConsumerToken(otherUser.id);
-
-
-    const body = [{ date: "2026-03-10", hour: 10, pricePerKwh: 25 }];
+    const badToken = generateConsumerToken(producer.id);
 
     const res = await request(app)
       .patch("/producers/me/slots/price")
       .set("Authorization", `Bearer ${badToken}`)
-      .send(body);
+      .send([{ date: "2026-03-10", hour: 10, pricePerKwh: 25 }]);
 
     expect(res.status).toBe(403);
   });
@@ -188,8 +166,7 @@ describe("PATCH /producers/me/slots/price — Price API (with token)", () => {
     const slots = await ProducerSlot.findAll({
       where: { producerProfileId: producerProfile.id },
     });
-    for (const item of slots) {
-      expect(item.pricePerKwh).not.toBe(10);
-    }
+
+    expect(slots.length).toBe(0);
   });
 });

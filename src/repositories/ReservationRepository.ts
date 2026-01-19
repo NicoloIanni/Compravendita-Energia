@@ -53,7 +53,7 @@ export class ReservationRepository {
    * ========================= */
   async save(
     reservation: Reservation,
-    tx: Transaction
+    tx?: Transaction
   ): Promise<Reservation> {
     return reservation.save({ transaction: tx });
   }
