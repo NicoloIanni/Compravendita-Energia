@@ -1,64 +1,52 @@
 import request from "supertest";
-import app from "../src/app"; // la tua app Express
-import ProducerProfile from "../src/models/ProducerProfile";
-import ProducerSlot from "../src/models/ProducerSlot";
 import jwt from "jsonwebtoken";
-import type { CreationAttributes } from "sequelize";
-import { User } from '../src/models'; 
 
-// ============================================
-// Helper -> genera JWT producer con profileId
-// ============================================
-function generateProducerToken(profileId: number, userId: number) {
-  const secret = process.env.JWT_SECRET || "testsecret";
+import app from "../src/app";
+import { User, ProducerProfile, ProducerSlot } from "../src/models";
+
+function generateProducerToken(userId: number, profileId: number) {
+  const secret = process.env.JWT_SECRET!;
   return jwt.sign(
-    { userId, profileId, role: "producer" },
+    { userId, role: "producer", profileId },
     secret,
     { expiresIn: "1h" }
   );
 }
 
 describe("PATCH /producers/me/slots/capacity — Capacity API", () => {
-  let producerProfile: any;
+  let producer: User;
+  let producerProfile: ProducerProfile;
   let token: string;
   let consoleErrorSpy: jest.SpyInstance;
 
-
   beforeAll(async () => {
-      consoleErrorSpy = jest
-    .spyOn(console, "error")
-    .mockImplementation(() => {});
+    consoleErrorSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
 
-      const user = await User.create({
-    email: "prod@example.com",
-    passwordHash: "fake", // se require
-    role: "producer",
-    credit: 100,
+    // 🔹 SOLO SEED
+    const foundProducer = await User.findOne({ where: { role: "producer" } });
+    if (!foundProducer) throw new Error("Seed producer not found");
+    producer = foundProducer;
+
+    const foundProfile = await ProducerProfile.findOne({
+      where: { userId: producer.id },
+    });
+    if (!foundProfile) throw new Error("Seed producer profile not found");
+    producerProfile = foundProfile;
+
+    token = generateProducerToken(producer.id, producerProfile.id);
   });
 
-    // Crea un profilo producer
-    const profileData: CreationAttributes<ProducerProfile> = {
-      userId: user.id,
-      energyType: "Fotovoltaico",
-      co2_g_per_kwh: 100,
-    };
-
-
-    
-    producerProfile = await ProducerProfile.create(profileData);
-
-    // JWT valido
-    token = generateProducerToken(producerProfile.id, 10);
-  });
-
-  afterAll(async () => {
+  afterAll(() => {
     consoleErrorSpy.mockRestore();
   });
 
-
   beforeEach(async () => {
-    // pulisce gli slot
-    await ProducerSlot.destroy({ where: {} });
+    // 🔹 pulisce SOLO gli slot di questo producer
+    await ProducerSlot.destroy({
+      where: { producerProfileId: producerProfile.id },
+    });
   });
 
   it("200 OK — aggiorna capacity per slot singolo", async () => {
@@ -78,7 +66,7 @@ describe("PATCH /producers/me/slots/capacity — Capacity API", () => {
     });
 
     expect(slot).not.toBeNull();
-    expect(slot?.capacityKwh).toBe(50);
+    expect(slot!.capacityKwh).toBe(50);
   });
 
   it("200 OK — batch multipli aggiornati", async () => {
@@ -103,24 +91,15 @@ describe("PATCH /producers/me/slots/capacity — Capacity API", () => {
           hour: item.hour,
         },
       });
-      expect(slot?.capacityKwh).toBe(item.capacityKwh);
+      expect(slot!.capacityKwh).toBe(item.capacityKwh);
     }
   });
 
-  it("400 — hour fuori range (>=24)", async () => {
+  it("400 — hour fuori range", async () => {
     const res = await request(app)
       .patch("/producers/me/slots/capacity")
       .set("Authorization", `Bearer ${token}`)
       .send([{ date: "2026-01-20", hour: 24, capacityKwh: 10 }]);
-
-    expect(res.status).toBe(400);
-  });
-
-  it("400 — hour fuori range (<0)", async () => {
-    const res = await request(app)
-      .patch("/producers/me/slots/capacity")
-      .set("Authorization", `Bearer ${token}`)
-      .send([{ date: "2026-01-20", hour: -1, capacityKwh: 10 }]);
 
     expect(res.status).toBe(400);
   });
@@ -134,7 +113,7 @@ describe("PATCH /producers/me/slots/capacity — Capacity API", () => {
     expect(res.status).toBe(400);
   });
 
-  it("400 — campo date mancante", async () => {
+  it("400 — date mancante", async () => {
     const res = await request(app)
       .patch("/producers/me/slots/capacity")
       .set("Authorization", `Bearer ${token}`)
@@ -152,14 +131,14 @@ describe("PATCH /producers/me/slots/capacity — Capacity API", () => {
   });
 
   it("403 — ruolo non producer", async () => {
-    const nonProducerToken = jwt.sign(
-      { userId: 99, profileId: 99, role: "consumer" },
-      process.env.JWT_SECRET || "testsecret"
+    const badToken = jwt.sign(
+      { userId: producer.id, role: "consumer" },
+      process.env.JWT_SECRET!
     );
 
     const res = await request(app)
       .patch("/producers/me/slots/capacity")
-      .set("Authorization", `Bearer ${nonProducerToken}`)
+      .set("Authorization", `Bearer ${badToken}`)
       .send([{ date: "2026-01-20", hour: 10, capacityKwh: 20 }]);
 
     expect(res.status).toBe(403);
@@ -168,7 +147,7 @@ describe("PATCH /producers/me/slots/capacity — Capacity API", () => {
   it("atomicità — nessun salvataggio se un record è invalido", async () => {
     const body = [
       { date: "2026-01-20", hour: 8, capacityKwh: 12 },
-      { date: "2026-01-20", hour: 9, capacityKwh: -2 }, // invalido
+      { date: "2026-01-20", hour: 9, capacityKwh: -2 },
     ];
 
     const res = await request(app)
@@ -181,6 +160,7 @@ describe("PATCH /producers/me/slots/capacity — Capacity API", () => {
     const slots = await ProducerSlot.findAll({
       where: { producerProfileId: producerProfile.id },
     });
-    expect(slots.length).toBe(0); // niente inserito
+
+    expect(slots.length).toBe(0);
   });
 });

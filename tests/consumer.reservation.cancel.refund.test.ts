@@ -1,67 +1,88 @@
-import "../src/models";
 import request from "supertest";
 import bcrypt from "bcrypt";
 
+import app from "../src/app";
 import User from "../src/models/User";
 import ProducerProfile from "../src/models/ProducerProfile";
 import ProducerSlot from "../src/models/ProducerSlot";
 import Reservation from "../src/models/Reservation";
 
-let app: any;
-
 describe("Consumer reservation cancellation with refund (>24h)", () => {
-  let token: string;
-  let consumerId: number;
-  let producerProfileId: number;
+  let consumer: User;
+  let consumerToken: string;
+
+  let producerUser: User;
+  let producerProfile: ProducerProfile;
+  let slot: ProducerSlot;
+
   let reservationId: number;
-  let creditBefore: number;
+  let creditBeforeReservation: number;
 
   beforeAll(async () => {
-    app = (await import("../src/app")).default;
+    /* =========================
+       1️⃣ CREA CONSUMER
+    ========================= */
+    consumer = await User.create({
+      email: "consumer_refund@test.com",
+      passwordHash: await bcrypt.hash("consumer123", 10),
+      role: "consumer",
+      credit: 100,
+    } as any);
 
-    // consumer seedato
-    const consumer = await User.findOne({
-      where: { email: "consumer@example.com" },
-    });
-    if (!consumer) throw new Error("Seed consumer not found");
-
-    consumerId = consumer.id;
-       await consumer.update({
-        passwordHash: await bcrypt.hash("consumer123", 10),
-      });
-    creditBefore = consumer.credit;
-
-    // producer profile seedato
-    const producerProfile = await ProducerProfile.findOne();
-    if (!producerProfile) throw new Error("Seed producer profile not found");
-
-    producerProfileId = producerProfile.id;
-
-    // login
+    /* =========================
+       2️⃣ LOGIN CONSUMER
+    ========================= */
     const loginRes = await request(app)
       .post("/auth/login")
       .send({
-        email: "consumer@example.com",
+        email: consumer.email,
         password: "consumer123",
       });
 
     expect(loginRes.status).toBe(200);
-    token = loginRes.body.accessToken;
-  });
+    consumerToken = loginRes.body.accessToken;
 
-  it("should refund credit when reservation is cancelled before 24h", async () => {
-    // slot seedato
-    const slot = await ProducerSlot.findOne({
-      where: { producerProfileId },
-    });
-    if (!slot) throw new Error("Seed producer slot not found");
+    creditBeforeReservation = consumer.credit;
 
-    // crea prenotazione (>24h)
+    /* =========================
+       3️⃣ CREA PRODUCER + PROFILE
+    ========================= */
+    producerUser = await User.create({
+      email: "producer_refund@test.com",
+      passwordHash: await bcrypt.hash("producer123", 10),
+      role: "producer",
+      credit: 0,
+    } as any);
+
+    producerProfile = await ProducerProfile.create({
+      userId: producerUser.id,
+      energyType: "Fotovoltaico",
+      co2_g_per_kwh: 120,
+    } as any);
+
+    /* =========================
+       4️⃣ CREA SLOT > 24h
+    ========================= */
+    const future = new Date(Date.now() + 48 * 60 * 60 * 1000); // +48h
+    const date = future.toISOString().split("T")[0];
+    const hour = future.getHours();
+
+    slot = await ProducerSlot.create({
+      producerProfileId: producerProfile.id,
+      date,
+      hour,
+      capacityKwh: 100,
+      pricePerKwh: 10,
+    } as any);
+
+    /* =========================
+       5️⃣ CREA RESERVATION
+    ========================= */
     const createRes = await request(app)
       .post("/consumers/me/reservations")
-      .set("Authorization", `Bearer ${token}`)
+      .set("Authorization", `Bearer ${consumerToken}`)
       .send({
-        producerProfileId,
+        producerProfileId: producerProfile.id,
         date: slot.date,
         hour: slot.hour,
         requestedKwh: 1,
@@ -69,17 +90,29 @@ describe("Consumer reservation cancellation with refund (>24h)", () => {
 
     expect(createRes.status).toBe(201);
     reservationId = createRes.body.id;
+  });
 
-    // cancella (>24h → rimborso)
+  it("should refund credit when reservation is cancelled before 24h", async () => {
     const cancelRes = await request(app)
       .patch(`/consumers/me/reservations/${reservationId}`)
-      .set("Authorization", `Bearer ${token}`)
+      .set("Authorization", `Bearer ${consumerToken}`)
       .send({ requestedKwh: 0 });
 
     expect(cancelRes.status).toBe(200);
     expect(cancelRes.body.status).toBe("CANCELLED");
 
-    const afterCancel = await User.findByPk(consumerId);
-    expect(afterCancel!.credit).toBe(creditBefore);
+    const afterCancel = await User.findByPk(consumer.id);
+    expect(afterCancel!.credit).toBe(creditBeforeReservation);
+  });
+
+  afterAll(async () => {
+    /* =========================
+       CLEANUP COMPLETO
+    ========================= */
+    await Reservation.destroy({ where: { id: reservationId } });
+    await ProducerSlot.destroy({ where: { producerProfileId: producerProfile.id } });
+    await ProducerProfile.destroy({ where: { id: producerProfile.id } });
+    await User.destroy({ where: { id: producerUser.id } });
+    await User.destroy({ where: { id: consumer.id } });
   });
 });

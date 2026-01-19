@@ -53,8 +53,25 @@ export class ReservationRepository {
    * ========================= */
   async save(
     reservation: Reservation,
-    tx: Transaction
+    tx?: Transaction
   ): Promise<Reservation> {
     return reservation.save({ transaction: tx });
+  }
+
+  async sumRequestedForSlot(
+    producerProfileId: number,
+    date: string,
+    hour: number
+  ): Promise<number> {
+    const result = await Reservation.sum("requestedKwh", {
+      where: {
+        producerProfileId,
+        date,
+        hour,
+        status: "PENDING",
+      },
+    });
+
+    return Number(result || 0);
   }
 }

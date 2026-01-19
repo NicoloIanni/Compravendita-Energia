@@ -35,4 +35,21 @@ export class ProducerSlotRepository {
       transaction,
     });
   }
+  async findByProducerAndDate(
+    producerProfileId: number,
+    date: string,
+    fromHour: number,
+    toHour: number
+  ) {
+    return ProducerSlot.findAll({
+      where: {
+        producerProfileId,
+        date,
+        hour: {
+          $between: [fromHour, toHour],
+        },
+      },
+      order: [["hour", "ASC"]],
+    });
+  }
 }
