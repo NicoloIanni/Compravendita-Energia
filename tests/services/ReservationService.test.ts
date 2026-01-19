@@ -5,7 +5,7 @@
  * - Controlla tempo con jest.setSystemTime (regola 24h)
  */
 
-jest.mock("../../src/config/db", () => {
+jest.mock("../../src/db", () => {
   return {
     sequelize: {
       transaction: async (fn: any) => {

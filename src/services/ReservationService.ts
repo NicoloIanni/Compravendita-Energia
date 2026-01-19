@@ -1,4 +1,4 @@
-import { sequelize } from "../config/db";
+import { sequelize } from "../db";
 import { addHours, isAfter, startOfHour } from "date-fns";
 
 import type { Transaction } from "sequelize";

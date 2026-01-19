@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import type { Transaction } from "sequelize";
-import { sequelize } from "../config/db";
+import { sequelize } from "../db";
 import { producerSlotService } from "../services/producerSlotServiceInstance";
 
 function getProducerProfileId(req: Request): number {
