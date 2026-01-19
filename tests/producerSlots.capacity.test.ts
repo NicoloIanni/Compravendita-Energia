@@ -1,5 +1,4 @@
 import request from "supertest";
-import { sequelize } from "../src/config/db";
 import app from "../src/app"; // la tua app Express
 import ProducerProfile from "../src/models/ProducerProfile";
 import ProducerSlot from "../src/models/ProducerSlot";
@@ -54,7 +53,6 @@ describe("PATCH /producers/me/slots/capacity — Capacity API", () => {
 
   afterAll(async () => {
     consoleErrorSpy.mockRestore();
-    await sequelize.close();
   });
 
 

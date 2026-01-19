@@ -1,5 +1,4 @@
 import "../src/models";
-import { sequelize } from "../src/db";
 import request from "supertest";
 import bcrypt from "bcrypt";
 
@@ -48,10 +47,6 @@ describe("Consumer reservation cancellation with refund (>24h)", () => {
 
     expect(loginRes.status).toBe(200);
     token = loginRes.body.accessToken;
-  });
-
-  afterAll(async () => {
-    await sequelize.close();
   });
 
   it("should refund credit when reservation is cancelled before 24h", async () => {
