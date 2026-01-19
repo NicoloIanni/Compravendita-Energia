@@ -170,6 +170,7 @@ Di seguito un riepilogo delle rotte principali implementate nel progetto:
 | `PATCH` | `/producers/me/slots/capacity` | Aggiorna in batch la capacità degli slot (kWh) per un producer autenticato |
 | `PATCH` | `/producers/me/slots/price` | Aggiorna in batch il prezzo degli slot (credit/kWh) per un producer autenticato |
 | `POST`  | `/consumers/me/reservations` | Crea una prenotazione di energia per un consumer autenticato (stato iniziale `PENDING`) |
+| `GET`   | `/producers/me/requests` | Visualizza le richieste ricevute per un producer e la % di occupazione per fascia oraria (filtrabile) |
 
 ### Comportamento dei controller
 
@@ -558,8 +559,8 @@ politiche di allocazione senza modificare la logica esistente.
 - **Giorno 2**: modelli Sequelize + associazioni + seed + JWT reale ✅
 - **Giorno 3**: producer slot capacity/price (batch) + validazioni ✅
 - **Giorno 4**: consumer prenotazione (`PENDING`) + regola 24h + scalatura credito (transaction) ✅
-- **Giorno 5**: modifica/cancellazione prenotazione + refund/penale
-- **Giorno 6**: producer view richieste + % occupazione
+- **Giorno 5**: modifica/cancellazione prenotazione + refund/penale ✅
+- **Giorno 6**: producer view richieste + % occupazione ✅
 - **Giorno 7**: resolve proporzionale + allocazioni + refund differenze (transaction)
 - **Giorno 8**: purchases filter + carbon footprint + earnings + stats JSON
 - **Giorno 9**: test Jest completi + Postman collection + Newman
