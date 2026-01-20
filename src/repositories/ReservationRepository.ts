@@ -49,7 +49,7 @@ export class ReservationRepository {
   }
 
   /* =========================
-   * SAVE
+   * SAVE (UNICO METODO)
    * ========================= */
   async save(
     reservation: Reservation,
@@ -58,6 +58,9 @@ export class ReservationRepository {
     return reservation.save({ transaction: tx });
   }
 
+  /* =========================
+   * SUM REQUESTED (DAY 6)
+   * ========================= */
   async sumRequestedForSlot(
     producerProfileId: number,
     date: string,
@@ -73,5 +76,27 @@ export class ReservationRepository {
     });
 
     return Number(result || 0);
+  }
+
+  /* =========================
+   * DAY 7 – resolve: prenotazioni PENDING per slot
+   * ========================= */
+  async findPendingForResolveBySlot(
+    producerProfileId: number,
+    date: string,
+    hour: number,
+    tx: Transaction
+  ): Promise<Reservation[]> {
+    return Reservation.findAll({
+      where: {
+        producerProfileId,
+        date,
+        hour,
+        status: "PENDING",
+      },
+      transaction: tx,
+      lock: tx.LOCK.UPDATE,
+      order: [["id", "ASC"]],
+    });
   }
 }
