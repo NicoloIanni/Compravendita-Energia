@@ -1,6 +1,7 @@
 // src/repositories/ProducerSlotRepository.ts
 
 import type { Transaction } from "sequelize";
+import { Op } from "sequelize";
 import ProducerSlot from "../models/ProducerSlot";
 
 export class ProducerSlotRepository {
@@ -20,7 +21,8 @@ export class ProducerSlotRepository {
 
     await Promise.all(ops);
   }
-   async findByProducerDateHour(
+
+  async findByProducerDateHour(
     producerProfileId: number,
     date: string,
     hour: number,
@@ -35,20 +37,43 @@ export class ProducerSlotRepository {
       transaction,
     });
   }
+
+  // =====================================================
+  // DAY 6 – view richieste / stats (READ ONLY)
+  // =====================================================
   async findByProducerAndDate(
     producerProfileId: number,
     date: string,
     fromHour: number,
     toHour: number
-  ) {
-    return ProducerSlot.findAll({
+  ): Promise<ProducerSlot[]> {
+    return this.model.findAll({
       where: {
         producerProfileId,
         date,
         hour: {
-          $between: [fromHour, toHour],
+          [Op.between]: [fromHour, toHour],
         },
       },
+      order: [["hour", "ASC"]],
+    });
+  }
+
+  // =====================================================
+  // DAY 7 – resolve richieste (WRITE + LOCK)
+  // =====================================================
+  async findForResolveByProducerAndDate(
+    producerProfileId: number,
+    date: string,
+    transaction: Transaction
+  ): Promise<ProducerSlot[]> {
+    return this.model.findAll({
+      where: {
+        producerProfileId,
+        date,
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
       order: [["hour", "ASC"]],
     });
   }
