@@ -44,16 +44,39 @@ export class SettlementService {
           0
         );
 
-        let strategy: AllocationStrategy;
-        if (sumRequested <= capacity) {
-          strategy = new NoCutStrategy();
-        } else {
-          strategy = new ProportionalCutStrategy();
-          oversubscribedHours++;
-        }
+        let allocations = new Map<number, number>();
 
-        const allocations = strategy.allocate(reservations, capacity);
+// SE NON oversubscription
+if (sumRequested <= capacity) {
+  for (const r of reservations) {
+    allocations.set(r.id, r.requestedKwh);
+  }
+} else {
+  oversubscribedHours++;
 
+  // calcolo proporzionale
+  const factor = capacity / sumRequested;
+  let allocatedSoFar = 0;
+
+  for (const r of reservations) {
+    const alloc = parseFloat((r.requestedKwh * factor).toFixed(6));
+    allocations.set(r.id, alloc);
+    allocatedSoFar += alloc;
+  }
+
+  // corregge eventuali scarti di rounding
+  const roundingDiff = parseFloat(
+    (capacity - allocatedSoFar).toFixed(6)
+  );
+
+  if (roundingDiff !== 0 && reservations.length > 0) {
+    const firstId = reservations[0].id;
+    const corrected = parseFloat(
+      ((allocations.get(firstId) ?? 0) + roundingDiff).toFixed(6)
+    );
+    allocations.set(firstId, corrected);
+  }
+}
         const refundsByConsumer = new Map<number, number>();
 
         for (const r of reservations) {

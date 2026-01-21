@@ -82,67 +82,36 @@
       ]
     },
     {
-      "name": "Producer - Set Slot Capacity",
-      "request": {
-        "method": "PATCH",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{producer_token}}"
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "[\n  {\n    \"date\": \"{{tomorrow}}\",\n    \"hour\": 10,\n    \"capacityKwh\": 10\n  }\n]"
-        },
-        "url": "{{baseUrl}}/producers/me/slots/capacity"
+  "name": "Producer - Upsert Slots (capacity + price)",
+  "request": {
+    "method": "PATCH",
+    "header": [
+      {
+        "key": "Authorization",
+        "value": "Bearer {{producer_token}}"
       },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "pm.test('Capacity set', () => pm.response.to.have.status(200));"
-            ]
-          }
-        }
-      ]
+      {
+        "key": "Content-Type",
+        "value": "application/json"
+      }
+    ],
+    "body": {
+      "mode": "raw",
+      "raw": "{\n  \"date\": \"{{tomorrow}}\",\n  \"slots\": [\n    {\n      \"hour\": 10,\n      \"capacityKwh\": 10,\n      \"pricePerKwh\": 2\n    },\n    {\n      \"hour\": 11,\n      \"capacityKwh\": 8,\n      \"pricePerKwh\": 1.5\n    }\n  ]\n}"
     },
+    "url": "{{baseUrl}}/producers/me/slots"
+  },
+  "event": [
     {
-      "name": "Producer - Set Slot Price",
-      "request": {
-        "method": "PATCH",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{producer_token}}"
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "[\n  {\n    \"date\": \"{{tomorrow}}\",\n    \"hour\": 10,\n    \"pricePerKwh\": 2\n  }\n]"
-        },
-        "url": "{{baseUrl}}/producers/me/slots/price"
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "pm.test('Price set', () => pm.response.to.have.status(200));"
-            ]
-          }
-        }
-      ]
-    },
+      "listen": "test",
+      "script": {
+        "exec": [
+          "pm.test('Slots upsert OK', () => pm.response.to.have.status(200));"
+        ]
+      }
+    }
+  ]
+},
     {
       "name": "Producer - View Requests",
       "request": {

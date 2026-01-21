@@ -1,9 +1,14 @@
 import { ReservationRepository } from "../repositories/ReservationRepository";
 import Reservation from "../models/Reservation";
 import { calcStats } from "../stats.utils";
+import { ProducerSlotRepository } from "../repositories/ProducerSlotRepository";
+
 
 export class ProducerStatsService {
-  constructor(private reservationRepo: ReservationRepository) {}
+  constructor(
+    private reservationRepo: ReservationRepository,
+    private producerSlotRepo: ProducerSlotRepository
+  ) { }
 
   /* =========================
    * EARNINGS
@@ -13,13 +18,12 @@ export class ProducerStatsService {
     from?: Date;
     to?: Date;
   }) {
-    const reservations: Reservation[] =
-      await this.reservationRepo.findAllocatedByProducer(input);
+    const reservations = await this.reservationRepo.findAllocatedByProducer(input);
 
-    const totalEarnings = reservations.reduce((sum, r) => {
-      const price = (r as any).ProducerSlot.pricePerKwh;
-      return sum + r.allocatedKwh * price;
-    }, 0);
+    const totalEarnings = reservations.reduce(
+      (sum, r) => sum + (r.totalCostCharged ?? 0),
+      0
+    );
 
     return {
       from: input.from,
@@ -27,6 +31,7 @@ export class ProducerStatsService {
       totalEarnings,
     };
   }
+
   /* =========================
    * STATS
    * ========================= */
@@ -35,57 +40,40 @@ export class ProducerStatsService {
     from?: Date;
     to?: Date;
   }) {
-    const reservations: Reservation[] =
-      await this.reservationRepo.findAllocatedByProducer(input);
+    const reservations = await this.reservationRepo.findAllocatedByProducer(input);
+    const slots = await this.producerSlotRepo.findByProducerAndRange(input);
 
-    /**
-     * slotKey = date-hour
-     */
-    const slotMap = new Map<
-      string,
-      {
-        hour: number;
-        capacity: number;
-        sold: number;
-      }
-    >();
-
-    for (const r of reservations) {
-      const slot = (r as any).ProducerSlot;
-      const key = `${r.date}-${r.hour}`;
-
-      if (!slotMap.has(key)) {
-        slotMap.set(key, {
-          hour: r.hour,
-          capacity: slot.capacityKwh,
-          sold: 0,
-        });
-      }
-
-      slotMap.get(key)!.sold += r.allocatedKwh;
+    // capacity per slot (date-hour)
+    const capacityByKey = new Map<string, number>();
+    for (const s of slots) {
+      capacityByKey.set(`${s.date}-${s.hour}`, s.capacityKwh);
     }
 
-    /**
-     * percentuali per fascia oraria
-     */
+    // sold per slot (date-hour)
+    const soldByKey = new Map<string, { hour: number; sold: number }>();
+    for (const r of reservations) {
+      const key = `${r.date}-${r.hour}`;
+      if (!soldByKey.has(key)) {
+        soldByKey.set(key, { hour: r.hour, sold: 0 });
+      }
+      soldByKey.get(key)!.sold += r.allocatedKwh;
+    }
+
+    // percentuali per fascia oraria
     const hourPercentages = new Map<number, number[]>();
 
-    for (const slot of slotMap.values()) {
-      const percent =
-        slot.capacity > 0 ? (slot.sold / slot.capacity) * 100 : 0;
+    for (const [key, soldObj] of soldByKey.entries()) {
+      const capacity = capacityByKey.get(key) ?? 0;
+      const percent = capacity > 0 ? (soldObj.sold / capacity) * 100 : 0;
 
-      if (!hourPercentages.has(slot.hour)) {
-        hourPercentages.set(slot.hour, []);
+      if (!hourPercentages.has(soldObj.hour)) {
+        hourPercentages.set(soldObj.hour, []);
       }
-
-      hourPercentages.get(slot.hour)!.push(percent);
+      hourPercentages.get(soldObj.hour)!.push(percent);
     }
 
-    /**
-     * stats finali
-     */
+    // stats finali
     const result: Record<number, any> = {};
-
     for (const [hour, values] of hourPercentages.entries()) {
       result[hour] = calcStats(values);
     }

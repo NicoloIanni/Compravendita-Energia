@@ -36,5 +36,6 @@ export const consumerQueryService = new ConsumerQueryService(
 
 export const producerStatsService = new ProducerStatsService(
   reservationRepository
+, producerSlotRepository
 );
 

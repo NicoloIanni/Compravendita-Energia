@@ -3,14 +3,12 @@ import { authenticateJWT } from "../middlewares/auth";
 import { roleMiddleware } from "../middlewares/role";
 import { resolveProducerRequests } from "../controller/producerResolveController";
 
-import {
-  patchCapacity,
-  patchPrice,
-} from "../controller/producerSlotsController";
+import { upsertSlots } from "../controller/producerSlotsController";
+
 import { getProducerRequestsOverview } from "../services/ProducerRequestService";
 import {
-  getProducerEarnings,
-  getProducerStats,
+  getMyEarnings,
+  getMyStats,
 } from "../controller/producerStatsController";
 
 const router = Router();
@@ -19,18 +17,12 @@ const router = Router();
  * Producer Slots
  */
 router.patch(
-  "/me/slots/capacity",
+  "/me/slots",
   authenticateJWT,
   roleMiddleware("producer"),
-  patchCapacity
+  upsertSlots
 );
 
-router.patch(
-  "/me/slots/price",
-  authenticateJWT,
-  roleMiddleware("producer"),
-  patchPrice
-);
 
 router.get(
   "/me/requests",
@@ -82,7 +74,7 @@ router.get(
   "/me/earnings",
   authenticateJWT,
   roleMiddleware("producer"),
-  getProducerEarnings
+  getMyEarnings
 );
 
 /**
@@ -92,7 +84,7 @@ router.get(
   "/me/stats",
   authenticateJWT,
   roleMiddleware("producer"),
-  getProducerStats
+  getMyStats
 );
 
 export default router;

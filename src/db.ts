@@ -17,3 +17,19 @@ export const sequelize = new Sequelize({
   models: [User, ProducerProfile, ProducerSlot, Reservation],
   logging: false,
 });
+
+ProducerProfile.hasMany(ProducerSlot, {
+  foreignKey: "producerProfileId",
+});
+
+ProducerSlot.belongsTo(ProducerProfile, {
+  foreignKey: "producerProfileId",
+});
+
+ProducerProfile.hasMany(Reservation, {
+  foreignKey: "producerProfileId",
+});
+
+Reservation.belongsTo(ProducerProfile, {
+  foreignKey: "producerProfileId",
+});

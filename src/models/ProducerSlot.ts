@@ -9,7 +9,16 @@ import {
 } from "sequelize-typescript";
 import type { InferAttributes, InferCreationAttributes } from "sequelize";
 
-@Table({ tableName: "ProducerSlots" })
+@Table({
+  tableName: "ProducerSlots",
+  indexes: [
+    {
+      unique: true,
+      fields: ["producerProfileId", "date", "hour"],
+      name: "unique_producer_slot_per_hour",
+    },
+  ],
+})
 export default class ProducerSlot extends Model <
 InferAttributes <ProducerSlot>,
 InferCreationAttributes <ProducerSlot>> {
