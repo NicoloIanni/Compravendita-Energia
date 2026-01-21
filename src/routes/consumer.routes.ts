@@ -4,16 +4,16 @@ import { Router } from "express";
 import { authenticateJWT } from "../middlewares/auth";
 import { roleMiddleware } from "../middlewares/role";
 import { ConsumerReservationController } from "../controller/consumerReservations.controller";
-import  {reservationService } from "../container";
-import {
-  getConsumerPurchases,
-  getConsumerCarbon,
-} from "../controller/consumerQuery.controller";
+import  {consumerQueryService, reservationService } from "../container";
+
 
 
 const router = Router();
 
-const controller = new ConsumerReservationController(reservationService);
+const controller = new ConsumerReservationController(
+  reservationService,
+  consumerQueryService
+);
 
 router.post(
   "/me/reservations",
@@ -37,7 +37,8 @@ router.get(
   "/me/purchases",
   authenticateJWT,
   roleMiddleware("consumer"),
-  getConsumerPurchases
+  controller.getMyPurchases
+  
 );
 
 // =========================
@@ -47,7 +48,7 @@ router.get(
   "/me/carbon",
   authenticateJWT,
   roleMiddleware("consumer"),
-  getConsumerCarbon
+  controller.getMyCarbon
 );
 
 

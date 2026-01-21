@@ -20,11 +20,13 @@ export class ConsumerQueryService {
 
     return reservations.map((r) => ({
       date: r.date,                 // YYYY-MM-DD
-      hour: r.hour,                 // 0–23
+      hour: r.hour,
+      requestedKwh:r.requestedKwh,                // 0–23
       allocatedKwh: r.allocatedKwh,
       totalCost: r.totalCostCharged,
-      producerProfileId: (r as any).ProducerProfile.id,
-      energyType: (r as any).ProducerProfile.energyType,
+      status: r.status,
+      producerProfileId: (r as any).producerProfile.id,
+      energyType: (r as any).producerProfile.energyType,
     }));
   }
 
@@ -36,17 +38,28 @@ export class ConsumerQueryService {
     from?: Date;
     to?: Date;
   }) {
-    const reservations: Reservation[] =
-      await this.reservationRepo.findAllocatedByConsumer(input);
+    const reservations = await this.reservationRepo.findAllocatedByConsumer(input);
 
-    const totalCo2_g = reservations.reduce((sum, r) => {
-      const co2 = (r as any).ProducerProfile.co2_g_per_kwh;
-      return sum + r.allocatedKwh * co2;
-    }, 0);
+    const items = reservations.map((r) => {
+      const producer = (r as any).producerProfile;
+      const co2_g = r.allocatedKwh * producer.co2_g_per_kwh;
+
+      return {
+        date: r.date,
+        hour: r.hour,
+        allocatedKwh: r.allocatedKwh,
+        energyType: producer.energyType,
+        co2_g_per_kwh: producer.co2_g_per_kwh,
+        co2_g,
+      };
+    });
+
+    const totalCo2_g = items.reduce((sum, i) => sum + i.co2_g, 0);
 
     return {
       from: input.from,
       to: input.to,
+      items,
       totalCo2_g,
     };
   }

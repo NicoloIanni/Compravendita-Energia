@@ -105,7 +105,7 @@ export class ReservationRepository {
   /* =========================
    * DAY 8 – Consumer purchases / carbon
    * ========================= */
-  async findAllocatedByConsumer(filters: {
+async findAllocatedByConsumer(filters: {
     consumerId: number;
     producerProfileId?: number;
     energyType?: string;
@@ -115,29 +115,34 @@ export class ReservationRepository {
     return Reservation.findAll({
       where: {
         consumerId: filters.consumerId,
-        status: "ALLOCATED",
+        status: {
+          [Op.in]: ["ALLOCATED", "PENDING"],
+        },
         ...(filters.from || filters.to
           ? {
-              date: {
-                ...(filters.from && { [Op.gte]: filters.from }),
-                ...(filters.to && { [Op.lte]: filters.to }),
-              },
-            }
+            date: {
+              ...(filters.from && { [Op.gte]: filters.from }),
+              ...(filters.to && { [Op.lte]: filters.to }),
+            },
+          }
           : {}),
       },
       include: [
         {
           model: ProducerProfile,
+          attributes: ["id", "energyType", "co2_g_per_kwh"],
           where: {
             ...(filters.energyType && { energyType: filters.energyType }),
             ...(filters.producerProfileId && {
               id: filters.producerProfileId,
             }),
           },
+          required: true,
         },
-        {
-          model: ProducerSlot,
-        },
+      ],
+      order: [
+        ["date", "ASC"],
+        ["hour", "ASC"],
       ],
     });
   }
@@ -163,10 +168,11 @@ export class ReservationRepository {
       },
       include: [
         {
-          model: ProducerSlot,
+          model: ProducerProfile,
           where: {
-            producerProfileId: filters.producerProfileId,
+            id: filters.producerProfileId,
           },
+          required: true,
         },
       ],
     });

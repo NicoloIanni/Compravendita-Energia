@@ -11,16 +11,16 @@ export class ProducerSlotRepository {
     this.model = producerSlotModel;
   }
 
-  async upsertBatch(
-    slots: Partial<ProducerSlot>[],
-    transaction: Transaction
-  ): Promise<void> {
-    const ops = slots.map(slot =>
-      this.model.upsert(slot as any, { transaction })
-    );
+async upsertBatch(
+  slots: Partial<ProducerSlot>[],
+  transaction: Transaction
+): Promise<void> {
+  await this.model.bulkCreate(slots as any, {
+    transaction,
+    updateOnDuplicate: ["capacityKwh", "pricePerKwh", "updatedAt"],
+  });
+}
 
-    await Promise.all(ops);
-  }
 
   async findByProducerDateHour(
     producerProfileId: number,
@@ -77,4 +77,28 @@ export class ProducerSlotRepository {
       order: [["hour", "ASC"]],
     });
   }
+  async findByProducerAndRange(input: {
+    producerProfileId: number;
+    from?: Date;
+    to?: Date;
+  }): Promise<ProducerSlot[]> {
+    return this.model.findAll({
+      where: {
+        producerProfileId: input.producerProfileId,
+        ...(input.from || input.to
+          ? {
+            date: {
+              ...(input.from && { [Op.gte]: input.from }),
+              ...(input.to && { [Op.lte]: input.to }),
+            },
+          }
+          : {}),
+      },
+      order: [
+        ["date", "ASC"],
+        ["hour", "ASC"],
+      ],
+    });
+  }
 }
+
