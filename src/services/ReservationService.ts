@@ -2,7 +2,7 @@ import { sequelize } from "../db";
 import { addHours, isAfter, startOfHour } from "date-fns";
 
 import type { Transaction } from "sequelize";
-import type Reservation from "../models/Reservation";
+import  Reservation from "../models/Reservation";
 
 import { UserRepository } from "../repositories/UserRepository";
 import { ProducerSlotRepository } from "../repositories/ProducerSlotRepository";
@@ -100,20 +100,73 @@ export class ReservationService {
         throw new DomainError("SLOT_NOT_FOUND");
       }
 
-      // =========================
-      // 5. Calcolo costo
-      // =========================
-      const totalCost = requestedKwh * slot.pricePerKwh;
+      const capacity = slot.capacityKwh;
 
       // =========================
-      // 6. Check credito
+      // 5. Controllo slot pieno
       // =========================
+      const sumAllocatedKwh = Number(
+        (await Reservation.sum("allocatedKwh", {
+          where: {
+            producerProfileId,
+            date,
+            hour,
+            status: "ALLOCATED",
+          },
+          transaction: tx,
+        })) ?? 0
+      );
+
+      if (sumAllocatedKwh >= capacity) {
+        throw new DomainError("SLOT_FULL_CANNOT_BOOK");
+      }
+
+      // =========================
+      // 6. Check prenotazione esistente (stesso consumer)
+      // =========================
+      const existingPending =
+        await this.reservationRepository.findPendingByConsumerSlot(
+          consumerId,
+          producerProfileId,
+          date,
+          hour,
+          tx
+        );
+
+      if (existingPending) {
+        // somma alla richiesta esistente
+        existingPending.requestedKwh = Number(
+          (existingPending.requestedKwh + requestedKwh).toFixed(3)
+        );
+
+        // ricalcola il totalCostCharged
+        existingPending.totalCostCharged = Number(
+          (existingPending.requestedKwh * slot.pricePerKwh).toFixed(3)
+        );
+
+        // controllo credito addizionale
+        const addedCost = requestedKwh * slot.pricePerKwh;
+        if (consumer.credit < addedCost) {
+          throw new DomainError("INSUFFICIENT_CREDIT");
+        }
+
+        consumer.credit = Number((consumer.credit - addedCost).toFixed(3));
+        await this.userRepository.save(consumer, tx);
+
+        return this.reservationRepository.save(existingPending, tx);
+      }
+
+      // =========================
+      // 7. Calcolo costo e check credito
+      // =========================
+      const totalCost = Number((requestedKwh * slot.pricePerKwh).toFixed(3));
+
       if (consumer.credit < totalCost) {
         throw new DomainError("INSUFFICIENT_CREDIT");
       }
 
       // =========================
-      // 7. Creazione reservation
+      // 8. Creazione reservation PENDING
       // =========================
       const reservation = await this.reservationRepository.create(
         {
@@ -130,9 +183,9 @@ export class ReservationService {
       );
 
       // =========================
-      // 8. Scalare credito
+      // 9. Scalare credito
       // =========================
-      consumer.credit -= totalCost;
+      consumer.credit = Number((consumer.credit - totalCost).toFixed(3));
       await this.userRepository.save(consumer, tx);
 
       return reservation;

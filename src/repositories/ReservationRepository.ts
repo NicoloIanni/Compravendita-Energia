@@ -177,4 +177,24 @@ async findAllocatedByConsumer(filters: {
       ],
     });
   }
+  
+  async findPendingByConsumerSlot(
+  consumerId: number,
+  producerProfileId: number,
+  date: string,
+  hour: number,
+  tx?: Transaction
+): Promise<Reservation | null> {
+  return Reservation.findOne({
+    where: {
+      consumerId,
+      producerProfileId,
+      date,
+      hour,
+      status: "PENDING",
+    },
+    transaction: tx,
+  });
+}
+
 }
