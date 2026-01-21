@@ -1,5 +1,7 @@
-import { Transaction } from "sequelize";
+import { Transaction, Op } from "sequelize";
 import Reservation from "../models/Reservation";
+import ProducerProfile from "../models/ProducerProfile";
+import ProducerSlot from "../models/ProducerSlot";
 
 interface CreateReservationData {
   consumerId: number;
@@ -97,6 +99,76 @@ export class ReservationRepository {
       transaction: tx,
       lock: tx.LOCK.UPDATE,
       order: [["id", "ASC"]],
+    });
+  }
+
+  /* =========================
+   * DAY 8 – Consumer purchases / carbon
+   * ========================= */
+  async findAllocatedByConsumer(filters: {
+    consumerId: number;
+    producerProfileId?: number;
+    energyType?: string;
+    from?: Date;
+    to?: Date;
+  }): Promise<Reservation[]> {
+    return Reservation.findAll({
+      where: {
+        consumerId: filters.consumerId,
+        status: "ALLOCATED",
+        ...(filters.from || filters.to
+          ? {
+              date: {
+                ...(filters.from && { [Op.gte]: filters.from }),
+                ...(filters.to && { [Op.lte]: filters.to }),
+              },
+            }
+          : {}),
+      },
+      include: [
+        {
+          model: ProducerProfile,
+          where: {
+            ...(filters.energyType && { energyType: filters.energyType }),
+            ...(filters.producerProfileId && {
+              id: filters.producerProfileId,
+            }),
+          },
+        },
+        {
+          model: ProducerSlot,
+        },
+      ],
+    });
+  }
+    /* =========================
+   * DAY 8 – Producer earnings / stats
+   * ========================= */
+  async findAllocatedByProducer(filters: {
+    producerProfileId: number;
+    from?: Date;
+    to?: Date;
+  }): Promise<Reservation[]> {
+    return Reservation.findAll({
+      where: {
+        status: "ALLOCATED",
+        ...(filters.from || filters.to
+          ? {
+              date: {
+                ...(filters.from && { [Op.gte]: filters.from }),
+                ...(filters.to && { [Op.lte]: filters.to }),
+              },
+            }
+          : {}),
+      },
+      include: [
+        {
+          model: ProducerSlot,
+          where: {
+            producerProfileId: filters.producerProfileId,
+          },
+        },
+      ],
     });
   }
 }
