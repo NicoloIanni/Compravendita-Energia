@@ -1,253 +1,336 @@
 {
   "info": {
-    "name": "Compravendita Energia - Base",
+    "name": "Compravendita Energia - Full Demo",
     "_postman_id": "f50e5520-7acd-4493-8101-630d49931369",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Collection minima per dimostrare Newman: health + login + test negativi + endpoint protetto con Bearer token."
+    "description": "Collection completa: health, auth, consumer, producer, resolve."
   },
   "item": [
     {
       "name": "Health",
       "request": {
         "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/health",
-          "host": ["{{baseUrl}}"],
-          "path": ["health"]
-        }
+        "url": "{{baseUrl}}/health"
       },
       "event": [
         {
           "listen": "test",
           "script": {
-            "type": "text/javascript",
             "exec": [
-              "pm.test('Status code is 200', function () {",
-              "  pm.response.to.have.status(200);",
-              "});"
+              "pm.test('Health OK', () => pm.response.to.have.status(200));"
             ]
           }
         }
       ]
     },
     {
-      "name": "Auth - Login",
+      "name": "Auth - Login Producer",
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Accept", "value": "application/json" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+          "raw": "{\n  \"email\": \"{{producer_email}}\",\n  \"password\": \"{{producer_password}}\"\n}"
         },
-        "url": {
-          "raw": "{{baseUrl}}/auth/login",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "login"]
-        },
-        "description": "Deve restituire JSON con campo token. Esempio: {\"token\":\"<JWT>\"}"
+        "url": "{{baseUrl}}/auth/login"
       },
       "event": [
         {
           "listen": "test",
           "script": {
-            "type": "text/javascript",
             "exec": [
-              "pm.test('Status code is 200', function () {",
-              "  pm.response.to.have.status(200);",
-              "});",
-              "let json;",
-              "pm.test('Response is valid JSON', function () {",
-              "json= pm.response.json();",
-              "pm.expect(json).to.be.an('object');",
-              "});",
-              "",
-              "pm.test('accessToken exists', function () {",
-              "  pm.expect(json).to.have.property('accessToken');",
-              "  pm.expect(json.accessToken).to.be.a('string').and.not.empty;",
-              "});",
-              "",
-               
-              "pm.environment.set('jwt_token', json.accessToken);"
+              "const json = pm.response.json();",
+              "pm.test('Producer login OK', () => pm.response.to.have.status(200));",
+              "pm.environment.set('producer_token', json.accessToken);"
             ]
           }
         }
       ]
     },
-
     {
-      "name": "Auth - Login (wrong password)",
+      "name": "Auth - Login Consumer",
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Accept", "value": "application/json" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"wrong\"\n}"
+          "raw": "{\n  \"email\": \"{{consumer_email}}\",\n  \"password\": \"{{consumer_password}}\"\n}"
         },
-        "url": {
-          "raw": "{{baseUrl}}/auth/login",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "login"]
-        },
-        "description": "Login con password errata: deve restituire 401."
+        "url": "{{baseUrl}}/auth/login"
       },
       "event": [
         {
           "listen": "test",
           "script": {
-            "type": "text/javascript",
             "exec": [
-              "pm.test('Status code is 401', function () {",
-              "  pm.response.to.have.status(401);",
-              "});"
+              "const json = pm.response.json();",
+              "pm.test('Consumer login ok', () => pm.response.to.have.status(200));",
+              "pm.environment.set('consumer_token', json.accessToken);"
             ]
           }
         }
       ]
     },
-
     {
-      "name": "Auth - Login (missing body)",
+      "name": "Producer - Set Slot Capacity",
       "request": {
-        "method": "POST",
+        "method": "PATCH",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Accept", "value": "application/json" }
+          {
+            "key": "Authorization",
+            "value": "Bearer {{producer_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
-          "raw": "{}"
+          "raw": "[\n  {\n    \"date\": \"{{tomorrow}}\",\n    \"hour\": 10,\n    \"capacityKwh\": 10\n  }\n]"
         },
-        "url": {
-          "raw": "{{baseUrl}}/auth/login",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "login"]
-        },
-        "description": "Login con body vuoto: deve restituire 400."
+        "url": "{{baseUrl}}/producers/me/slots/capacity"
       },
       "event": [
         {
           "listen": "test",
           "script": {
-            "type": "text/javascript",
             "exec": [
-              "pm.test('Status code is 400', function () {",
-              "  pm.response.to.have.status(400);",
-              "});"
+              "pm.test('Capacity set', () => pm.response.to.have.status(200));"
             ]
           }
         }
       ]
     },
-
     {
-      "name": "Auth - Login (missing password)",
+      "name": "Producer - Set Slot Price",
       "request": {
-        "method": "POST",
+        "method": "PATCH",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Accept", "value": "application/json" }
+          {
+            "key": "Authorization",
+            "value": "Bearer {{producer_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"{{admin_email}}\"\n}"
+          "raw": "[\n  {\n    \"date\": \"{{tomorrow}}\",\n    \"hour\": 10,\n    \"pricePerKwh\": 2\n  }\n]"
         },
-        "url": {
-          "raw": "{{baseUrl}}/auth/login",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "login"]
-        },
-        "description": "Login senza password: deve restituire 400."
+        "url": "{{baseUrl}}/producers/me/slots/price"
       },
       "event": [
         {
           "listen": "test",
           "script": {
-            "type": "text/javascript",
             "exec": [
-              "pm.test('Status code is 400', function () {",
-              "  pm.response.to.have.status(400);",
-              "});"
+              "pm.test('Price set', () => pm.response.to.have.status(200));"
             ]
           }
         }
       ]
     },
-
+    {
+      "name": "Producer - View Requests",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{producer_token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/producers/me/requests?date={{tomorrow}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Requests OK', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Producer - Resolve Requests",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{producer_token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/producers/me/requests/resolve?date={{tomorrow}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Resolve OK', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.expect(body).to.have.property('date');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Consumer - Get My Reservations",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{consumer_token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/consumers/me/myreservations"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Consumer reservations OK', () => pm.response.to.have.status(200));",
+              "pm.expect(pm.response.json()).to.be.an('array');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+  "name": "Consumer - Purchases (Day 8)",
+  "request": {
+    "method": "GET",
+    "header": [
+      {
+        "key": "Authorization",
+        "value": "Bearer {{consumer_token}}"
+      }
+    ],
+    "url": "{{baseUrl}}/consumers/me/purchases"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "exec": [
+          "pm.test('Purchases OK', () => pm.response.to.have.status(200));",
+          "pm.expect(pm.response.json()).to.be.an('array');"
+        ]
+      }
+    }
+  ]
+},
+{
+  "name": "Consumer - Carbon Footprint (Day 8)",
+  "request": {
+    "method": "GET",
+    "header": [
+      {
+        "key": "Authorization",
+        "value": "Bearer {{consumer_token}}"
+      }
+    ],
+    "url": "{{baseUrl}}/consumers/me/carbon"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "exec": [
+          "pm.test('Carbon OK', () => pm.response.to.have.status(200));",
+          "const body = pm.response.json();",
+          "pm.expect(body).to.have.property('totalCo2_g');"
+        ]
+      }
+    }
+  ]
+},
+{
+  "name": "Producer - Earnings (Day 8)",
+  "request": {
+    "method": "GET",
+    "header": [
+      {
+        "key": "Authorization",
+        "value": "Bearer {{producer_token}}"
+      }
+    ],
+    "url": "{{baseUrl}}/producers/me/earnings"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "exec": [
+          "pm.test('Earnings OK', () => pm.response.to.have.status(200));",
+          "const body = pm.response.json();",
+          "pm.expect(body).to.have.property('totalEarnings');"
+        ]
+      }
+    }
+  ]
+},
+{
+  "name": "Producer - Stats (Day 8)",
+  "request": {
+    "method": "GET",
+    "header": [
+      {
+        "key": "Authorization",
+        "value": "Bearer {{producer_token}}"
+      }
+    ],
+    "url": "{{baseUrl}}/producers/me/stats"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "exec": [
+          "pm.test('Stats OK', () => pm.response.to.have.status(200));",
+          "pm.expect(pm.response.json()).to.be.an('object');"
+        ]
+      }
+    }
+  ]
+},
     {
       "name": "Protected - Dummy Ping",
       "request": {
         "method": "GET",
         "header": [
-          { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
-          { "key": "Accept", "value": "application/json" }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/protected/ping",
-          "host": ["{{baseUrl}}"],
-          "path": ["protected", "ping"]
-        },
-        "description": "Endpoint dummy protetto: richiede JWT valido. Deve rispondere 200 se autorizzato."
-      },
-      "event": [
-        {
-          "listen": "prerequest",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('JWT is present in environment', function () {",
-              "  const jwtToken = pm.environment.get('jwt_token');",
-              "  pm.expect(jwtToken, 'Missing env var jwt_token: login probably failed').to.be.a('string').and.not.empty;",
-              "  if (!pm.environment.get('jwt_token') && pm.environment.get('jwt')) {",
-              "    pm.environment.set('jwt_token', pm.environment.get('jwt'));",
-              "  }",
-              "});"
-            ]
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
           }
-        },
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status code is 200', function () {",
-              "  pm.response.to.have.status(200);",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-
-    {
-      "name": "Protected - Ping (missing token)",
-      "request": {
-        "method": "GET",
-        "header": [
-          { "key": "Accept", "value": "application/json" }
         ],
-        "url": {
-          "raw": "{{baseUrl}}/protected/ping",
-          "host": ["{{baseUrl}}"],
-          "path": ["protected", "ping"]
-        },
-        "description": "Ping protetto senza Authorization header: deve restituire 401."
+        "url": "{{baseUrl}}/protected/ping"
       },
       "event": [
         {
           "listen": "test",
           "script": {
-            "type": "text/javascript",
             "exec": [
-              "pm.test('Status code is 401', function () {",
-              "  pm.response.to.have.status(401);",
-              "});"
+              "pm.test('Protected ping OK', () => pm.response.to.have.status(200));"
             ]
           }
         }

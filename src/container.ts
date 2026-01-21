@@ -7,6 +7,9 @@ import { ProducerSlotRepository } from "./repositories/ProducerSlotRepository";
 import { ReservationRepository } from "./repositories/ReservationRepository";
 import { ReservationService } from "./services/ReservationService";
 import { SettlementService } from "./services/SettlementService";
+import { ConsumerQueryService } from "./services/ConsumerQueryService";
+import { ProducerStatsService } from "./services/ProducerStatsService";
+
 
 // Repository
 const userRepository = new UserRepository();
@@ -27,3 +30,11 @@ export const settlementService = new SettlementService(
   producerSlotRepository,
   reservationRepository
 );
+export const consumerQueryService = new ConsumerQueryService(
+  reservationRepository
+);
+
+export const producerStatsService = new ProducerStatsService(
+  reservationRepository
+);
+

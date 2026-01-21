@@ -1,23 +1,22 @@
 import { Op } from "sequelize";
-import ProducerProfile from "../models/ProducerProfile";
 import ProducerSlot from "../models/ProducerSlot";
 import Reservation from "../models/Reservation";
 
 export type ProducerRequestOverview = {
     hour: number;
     capacityKwh: number;
-    sumRequestedKwh: number;
+    occupiedKwh: number;
     occupancyPercent: number;
 };
 
 export async function getProducerRequestsOverview(params: {
-    userId: number;
+    producerProfileId: number;
     date: string;
     fromHour?: number;
     toHour?: number;
 }): Promise<ProducerRequestOverview[]> {
     const {
-        userId,
+        producerProfileId,
         date,
         fromHour = 0,
         toHour = 23,
@@ -27,17 +26,9 @@ export async function getProducerRequestsOverview(params: {
         throw new Error("Intervallo ore non valido");
     }
 
-    const profile = await ProducerProfile.findOne({
-        where: { userId },
-    });
-
-    if (!profile) {
-        throw new Error("ProducerProfile non trovato");
-    }
-
     const slots = await ProducerSlot.findAll({
         where: {
-            producerProfileId: profile.id,
+            producerProfileId,
             date,
             hour: { [Op.between]: [fromHour, toHour] },
         },
@@ -47,44 +38,30 @@ export async function getProducerRequestsOverview(params: {
     const result: ProducerRequestOverview[] = [];
 
     for (const slot of slots) {
-        const sum = await Reservation.sum("requestedKwh", {
+        const allocated = await Reservation.sum("allocatedKwh", {
             where: {
-                producerProfileId: profile.id,
+                producerProfileId,
                 date,
                 hour: slot.hour,
-                status: "PENDING",
+                status: "ALLOCATED",
             },
         });
 
-        const sumRequested = Number(sum || 0);
+        const occupiedKwh = Number(allocated || 0);
         const capacity = Number(slot.capacityKwh);
 
         const occupancyPercent =
             capacity > 0
-                ? Number(((sumRequested / capacity) * 100).toFixed(2))
+                ? Number(((occupiedKwh / capacity) * 100).toFixed(2))
                 : 0;
 
         result.push({
             hour: slot.hour,
             capacityKwh: capacity,
-            sumRequestedKwh: sumRequested,
+            occupiedKwh,
             occupancyPercent,
         });
     }
 
     return result;
-}
-
-/**
- * Wrapper class per coerenza con altri Service
- */
-export class ProducerRequestsService {
-    async getRequestsOverview(params: {
-        userId: number;
-        date: string;
-        fromHour?: number;
-        toHour?: number;
-    }) {
-        return getProducerRequestsOverview(params);
-    }
 }
