@@ -1,25 +1,25 @@
 import { Transaction, Op } from "sequelize";
 import Reservation from "../models/Reservation";
 import ProducerProfile from "../models/ProducerProfile";
-import ProducerSlot from "../models/ProducerSlot";
 
-interface CreateReservationData {
-  consumerId: number;
-  producerProfileId: number;
-  date: string;
-  hour: number;
-  requestedKwh: number;
-  allocatedKwh: number;
-  status: "PENDING" | "ALLOCATED" | "CANCELLED";
-  totalCostCharged: number;
-}
+/* NOTE: puoi aggiungere tipi più stretti a option se vuoi, ad es. FindOptions, AggregateOptions,
+   ma per semplicità li lasciamo `any` per supportare facilmente il mocking nei test. */
 
 export class ReservationRepository {
   /* =========================
    * CREATE
    * ========================= */
   async create(
-    data: CreateReservationData,
+    data: {
+      consumerId: number;
+      producerProfileId: number;
+      date: string;
+      hour: number;
+      requestedKwh: number;
+      allocatedKwh: number;
+      status: "PENDING" | "ALLOCATED" | "CANCELLED";
+      totalCostCharged: number;
+    },
     tx?: Transaction
   ): Promise<Reservation> {
     return Reservation.create(data, { transaction: tx });
@@ -28,10 +28,7 @@ export class ReservationRepository {
   /* =========================
    * FIND BY ID
    * ========================= */
-  async findById(
-    id: number,
-    tx?: Transaction
-  ): Promise<Reservation | null> {
+  async findById(id: number, tx?: Transaction): Promise<Reservation | null> {
     return Reservation.findByPk(id, {
       transaction: tx,
     });
@@ -68,7 +65,7 @@ export class ReservationRepository {
     date: string,
     hour: number
   ): Promise<number> {
-    const result = await Reservation.sum("requestedKwh", {
+    const result = await this.sum("requestedKwh", {
       where: {
         producerProfileId,
         date,
@@ -81,7 +78,7 @@ export class ReservationRepository {
   }
 
   /* =========================
-   * DAY 7 – resolve: prenotazioni PENDING per slot
+   * FIND PENDING FOR RESOLVE (DAY 7)
    * ========================= */
   async findPendingForResolveBySlot(
     producerProfileId: number,
@@ -103,9 +100,9 @@ export class ReservationRepository {
   }
 
   /* =========================
-   * DAY 8 – Consumer purchases / carbon
+   * Consumer purchases / carbon (DAY 8)
    * ========================= */
-async findAllocatedByConsumer(filters: {
+  async findAllocatedByConsumer(filters: {
     consumerId: number;
     producerProfileId?: number;
     energyType?: string;
@@ -120,11 +117,11 @@ async findAllocatedByConsumer(filters: {
         },
         ...(filters.from || filters.to
           ? {
-            date: {
-              ...(filters.from && { [Op.gte]: filters.from }),
-              ...(filters.to && { [Op.lte]: filters.to }),
-            },
-          }
+              date: {
+                ...(filters.from && { [Op.gte]: filters.from }),
+                ...(filters.to && { [Op.lte]: filters.to }),
+              },
+            }
           : {}),
       },
       include: [
@@ -146,8 +143,9 @@ async findAllocatedByConsumer(filters: {
       ],
     });
   }
-    /* =========================
-   * DAY 8 – Producer earnings / stats
+
+  /* =========================
+   * Producer earnings / stats (DAY 8)
    * ========================= */
   async findAllocatedByProducer(filters: {
     producerProfileId: number;
@@ -177,24 +175,67 @@ async findAllocatedByConsumer(filters: {
       ],
     });
   }
-  
-  async findPendingByConsumerSlot(
-  consumerId: number,
-  producerProfileId: number,
-  date: string,
-  hour: number,
-  tx?: Transaction
-): Promise<Reservation | null> {
-  return Reservation.findOne({
-    where: {
-      consumerId,
-      producerProfileId,
-      date,
-      hour,
-      status: "PENDING",
-    },
-    transaction: tx,
-  });
-}
 
+  /* =========================
+   * Find pending by consumer + slot (exists pending)
+   * ========================= */
+  async findPendingByConsumerSlot(
+    consumerId: number,
+    producerProfileId: number,
+    date: string,
+    hour: number,
+    tx?: Transaction
+  ): Promise<Reservation | null> {
+    return Reservation.findOne({
+      where: {
+        consumerId,
+        producerProfileId,
+        date,
+        hour,
+        status: "PENDING",
+      },
+      transaction: tx,
+    });
+  }
+
+  /* =========================
+   * Generic findOne
+   *   (serve per conflitto same hour)
+   * ========================= */
+  async findOne(options: any, tx?: Transaction): Promise<Reservation | null> {
+    return Reservation.findOne({
+      ...options,
+      transaction: tx,
+    });
+  }
+
+  /* =========================
+   * Generic sum helper
+   * ========================= */
+  async sum(
+    field: string | number | symbol,
+    options: any
+  ): Promise<number | null> {
+    return Reservation.sum(field as any, options);
+  }
+
+  /* =========================
+   * Somma allocated per slot
+   *  (usato in createReservation)
+   * ========================= */
+  async sumAllocatedForSlot(
+    producerProfileId: number,
+    date: string,
+    hour: number
+  ): Promise<number> {
+    const result = await this.sum("allocatedKwh", {
+      where: {
+        producerProfileId,
+        date,
+        hour,
+        status: "ALLOCATED",
+      },
+    });
+    return Number(result || 0);
+  }
 }

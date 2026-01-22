@@ -1,3 +1,4 @@
+import "dotenv/config";
 import request from "supertest";
 import * as jwt from "jsonwebtoken";
 
@@ -8,7 +9,6 @@ describe("POST /auth/login", () => {
   let consumer: User;
 
   beforeAll(async () => {
-    // utente già creato dal seed
     const found = await User.findOne({
       where: { role: "consumer" },
     });
@@ -16,6 +16,7 @@ describe("POST /auth/login", () => {
     if (!found) {
       throw new Error("Seed consumer not found");
     }
+
     consumer = found;
   });
 
@@ -24,7 +25,7 @@ describe("POST /auth/login", () => {
       .post("/auth/login")
       .send({
         email: consumer.email,
-        password: "consumer123", // password del seed
+        password: "consumer123",
       });
 
     expect(res.status).toBe(200);

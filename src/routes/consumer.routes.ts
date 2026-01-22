@@ -25,7 +25,7 @@ router.post(
 // Day 5 – UPDATE / CANCEL
 // =========================
 router.patch(
-  "/me/reservations/:id",
+  "/me/updatereservations/:id",
   authenticateJWT,
   roleMiddleware("consumer"),
   controller.updateReservation

@@ -9,12 +9,14 @@ import authRoutes from "./routes/auth.routes";
 import { healthRouter } from "./routes/health.routes";
 import protectedRoutes from "./routes/protected.routes";
 import { errorHandler } from "./middlewares/errorHandler";
+import adminRoutes from "./routes/admin.routes";
 
 const app = express();
 
 app.use(express.json());
 
 // Routes
+app.use("/admin", adminRoutes);
 app.use("/producers", producerRoutes);
 app.use("/consumers", consumerRoutes);
 app.use("/auth", authRoutes);

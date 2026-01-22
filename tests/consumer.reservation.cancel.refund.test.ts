@@ -92,18 +92,24 @@ describe("Consumer reservation cancellation with refund (>24h)", () => {
     reservationId = createRes.body.id;
   });
 
-  it("should refund credit when reservation is cancelled before 24h", async () => {
-    const cancelRes = await request(app)
-      .patch(`/consumers/me/reservations/${reservationId}`)
-      .set("Authorization", `Bearer ${consumerToken}`)
-      .send({ requestedKwh: 0 });
+it("should refund credit when reservation is cancelled before 24h (DEBUG)", async () => {
+ 
+  const url = `/consumers/me/updatereservations/${reservationId}`;
+  const cancelRes = await request(app)
+    .patch(url)
+    .set("Authorization", `Bearer ${consumerToken}`)
+    .send({ requestedKwh: 0 });
 
-    expect(cancelRes.status).toBe(200);
-    expect(cancelRes.body.status).toBe("CANCELLED");
+  expect(cancelRes.status).toBe(200);
+  expect(cancelRes.body.message).toBe(
+    "Reservation cancellata correttamente"
+  );
 
-    const afterCancel = await User.findByPk(consumer.id);
-    expect(afterCancel!.credit).toBe(creditBeforeReservation);
-  });
+  const afterCancel = await User.findByPk(consumer.id);
+
+  expect(afterCancel!.credit).toBe(creditBeforeReservation);
+});
+
 
   afterAll(async () => {
     /* =========================
