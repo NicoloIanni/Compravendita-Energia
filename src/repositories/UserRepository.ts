@@ -2,8 +2,23 @@
 
 import { Transaction } from "sequelize";
 import User from "../models/User";
+import { InferCreationAttributes } from "sequelize";
 
 export class UserRepository {
+  
+async create(
+  data: InferCreationAttributes<User>,
+  options: { transaction?: Transaction } = {}
+): Promise<User> {
+  return User.create(data, options);
+}
+async findByRole(role: "producer" | "consumer") {
+  return User.findAll({
+    where: { role },
+    attributes: ["id", "email", "role", "credit"],
+    order: [["id", "ASC"]],
+  });
+}
   /* =========================
    * FIND BY ID
    * ========================= */

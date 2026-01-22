@@ -2,20 +2,23 @@ import { Request, Response, NextFunction } from "express";
 import { ReservationService } from "../services/ReservationService";
 import { ConsumerQueryService } from "../services/ConsumerQueryService";
 
-
 export class ConsumerReservationController {
   constructor(
     private readonly reservationService: ReservationService,
     private readonly consumerQueryService: ConsumerQueryService
   ) {}
 
+  /**
+   * POST /consumers/me/reservations
+   * Day 4 – Create reservation
+   */
   createReservation = async (
     req: Request,
     res: Response,
     next: NextFunction
   ) => {
     try {
-      const consumerId = req.user!.userId; // preso dal JWT middleware
+      const consumerId = req.user!.userId;
 
       const { producerProfileId, date, hour, requestedKwh } = req.body;
 
@@ -32,7 +35,12 @@ export class ConsumerReservationController {
       next(err);
     }
   };
-    updateReservation = async (
+
+  /**
+   * PATCH /consumers/me/reservations/:id
+   * Day 5 – Update / Cancel reservation
+   */
+  updateReservation = async (
     req: Request,
     res: Response,
     next: NextFunction
@@ -50,21 +58,30 @@ export class ConsumerReservationController {
         return res.status(400).json({ error: "INVALID_KWH" });
       }
 
-      const reservation =
-        await this.reservationService.updateReservation({
-          consumerId,
-          reservationId,
-          requestedKwh,
-        });
+      await this.reservationService.updateReservation({
+        consumerId,
+        reservationId,
+        requestedKwh,
+      });
 
-      return res.status(200).json(reservation);
+      if (requestedKwh === 0) {
+        return res.status(200).json({
+          message: "Reservation cancellata correttamente",
+        });
+      }
+
+      return res.status(200).json({
+        message: "Reservation modificata correttamente",
+      });
     } catch (err) {
       next(err);
     }
   };
+
   /**
- * GET /consumers/me/purchases
- */
+   * GET /consumers/me/purchases
+   * Day 8 – Purchases
+   */
   getMyPurchases = async (
     req: Request,
     res: Response,
@@ -96,7 +113,7 @@ export class ConsumerReservationController {
         to: toDate,
       });
 
-      res.status(200).json(result);
+      return res.status(200).json(result);
     } catch (err) {
       next(err);
     }
@@ -104,6 +121,7 @@ export class ConsumerReservationController {
 
   /**
    * GET /consumers/me/carbon
+   * Day 8 – Carbon footprint
    */
   getMyCarbon = async (
     req: Request,
@@ -134,10 +152,9 @@ export class ConsumerReservationController {
         to: toDate,
       });
 
-      res.status(200).json(result);
+      return res.status(200).json(result);
     } catch (err) {
       next(err);
     }
   };
 }
-

@@ -11,6 +11,10 @@ export class ProducerSlotRepository {
     this.model = producerSlotModel;
   }
 
+  async createSlot(data: any, options: any = {}) {
+    return ProducerSlot.create(data, options);
+  }
+
 async upsertBatch(
   slots: Partial<ProducerSlot>[],
   transaction: Transaction

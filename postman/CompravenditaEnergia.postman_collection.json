@@ -3,8 +3,22 @@
     "name": "Compravendita Energia - Full Demo",
     "_postman_id": "f50e5520-7acd-4493-8101-630d49931369",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Collection completa: health, auth, consumer, producer, resolve."
+    "description": "Collection completa ordinata per ruolo: admin → producer → consumer → protected."
   },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "const now = new Date();",
+          "now.setHours(now.getHours() + 48);",
+          "const bookingDate = now.toISOString().slice(0, 10);",
+          "pm.environment.set('bookingDate', bookingDate);",
+          "console.log('bookingDate set to:', bookingDate);"
+        ]
+      }
+    }
+  ],
   "item": [
     {
       "name": "Health",
@@ -16,23 +30,135 @@
         {
           "listen": "test",
           "script": {
+            "exec": ["pm.test('Health OK', () => pm.response.to.have.status(200));"]
+          }
+        }
+      ]
+    },
+
+
+
+    {
+      "name": "Auth - Login Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
             "exec": [
-              "pm.test('Health OK', () => pm.response.to.have.status(200));"
+              "const json = pm.response.json();",
+              "pm.test('Admin login OK', () => pm.response.to.have.status(200));",
+              "pm.environment.set('admin_token', json.accessToken);"
             ]
           }
         }
       ]
     },
     {
-      "name": "Auth - Login Producer",
+      "name": "Admin - Create Producer",
       "request": {
         "method": "POST",
         "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
         ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"producer_admin_created@example.com\",\n  \"password\": \"Password123!\",\n  \"energyType\": \"Fotovoltaico\",\n  \"co2_g_per_kwh\": 45\n}"
+        },
+        "url": "{{baseUrl}}/admin/producers"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Create producer OK', () => pm.response.to.have.status(201));",
+              "pm.expect(pm.response.json().message).to.eql('Producer creato correttamente');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Create Consumer",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"consumer_admin_created@example.com\",\n  \"password\": \"Password123!\",\n  \"credit\": 100\n}"
+        },
+        "url": "{{baseUrl}}/admin/consumers"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Create consumer OK', () => pm.response.to.have.status(201));",
+              "pm.expect(pm.response.json().message).to.eql('Consumer creato correttamente');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - View Producers",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+        "url": "{{baseUrl}}/admin/producers"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Admin view producers OK', () => pm.response.to.have.status(200));",
+              "pm.expect(pm.response.json()).to.be.an('array');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - View Consumers",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+        "url": "{{baseUrl}}/admin/consumers"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Admin view consumers OK', () => pm.response.to.have.status(200));",
+              "pm.expect(pm.response.json()).to.be.an('array');"
+            ]
+          }
+        }
+      ]
+    },
+
+
+    {
+      "name": "Auth - Login Producer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"email\": \"{{producer_email}}\",\n  \"password\": \"{{producer_password}}\"\n}"
@@ -53,84 +179,40 @@
       ]
     },
     {
-      "name": "Auth - Login Consumer",
+      "name": "Producer - Upsert Slots (capacity + price)",
       "request": {
-        "method": "POST",
+        "method": "PATCH",
         "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
+          { "key": "Authorization", "value": "Bearer {{producer_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"{{consumer_email}}\",\n  \"password\": \"{{consumer_password}}\"\n}"
+          "raw": "{\n  \"date\": \"{{bookingDate}}\",\n  \"slots\": [\n    {\n      \"hour\": 10,\n      \"capacityKwh\": 10,\n      \"pricePerKwh\": 2\n    },\n    {\n      \"hour\": 11,\n      \"capacityKwh\": 8,\n      \"pricePerKwh\": 1.5\n    }\n  ]\n}"
         },
-        "url": "{{baseUrl}}/auth/login"
+        "url": "{{baseUrl}}/producers/me/slots"
       },
       "event": [
         {
           "listen": "test",
           "script": {
-            "exec": [
-              "const json = pm.response.json();",
-              "pm.test('Consumer login ok', () => pm.response.to.have.status(200));",
-              "pm.environment.set('consumer_token', json.accessToken);"
-            ]
+            "exec": ["pm.test('Slots upsert OK', () => pm.response.to.have.status(200));"]
           }
         }
       ]
     },
     {
-  "name": "Producer - Upsert Slots (capacity + price)",
-  "request": {
-    "method": "PATCH",
-    "header": [
-      {
-        "key": "Authorization",
-        "value": "Bearer {{producer_token}}"
-      },
-      {
-        "key": "Content-Type",
-        "value": "application/json"
-      }
-    ],
-    "body": {
-      "mode": "raw",
-      "raw": "{\n  \"date\": \"{{tomorrow}}\",\n  \"slots\": [\n    {\n      \"hour\": 10,\n      \"capacityKwh\": 10,\n      \"pricePerKwh\": 2\n    },\n    {\n      \"hour\": 11,\n      \"capacityKwh\": 8,\n      \"pricePerKwh\": 1.5\n    }\n  ]\n}"
-    },
-    "url": "{{baseUrl}}/producers/me/slots"
-  },
-  "event": [
-    {
-      "listen": "test",
-      "script": {
-        "exec": [
-          "pm.test('Slots upsert OK', () => pm.response.to.have.status(200));"
-        ]
-      }
-    }
-  ]
-},
-    {
       "name": "Producer - View Requests",
       "request": {
         "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{producer_token}}"
-          }
-        ],
-        "url": "{{baseUrl}}/producers/me/requests?date={{tomorrow}}"
+        "header": [{ "key": "Authorization", "value": "Bearer {{producer_token}}" }],
+        "url": "{{baseUrl}}/producers/me/requests?date={{bookingDate}}"
       },
       "event": [
         {
           "listen": "test",
           "script": {
-            "exec": [
-              "pm.test('Requests OK', () => pm.response.to.have.status(200));"
-            ]
+            "exec": ["pm.test('Requests OK', () => pm.response.to.have.status(200));"]
           }
         }
       ]
@@ -139,13 +221,8 @@
       "name": "Producer - Resolve Requests",
       "request": {
         "method": "POST",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{producer_token}}"
-          }
-        ],
-        "url": "{{baseUrl}}/producers/me/requests/resolve?date={{tomorrow}}"
+        "header": [{ "key": "Authorization", "value": "Bearer {{producer_token}}" }],
+        "url": "{{baseUrl}}/producers/me/requests/resolve?date={{bookingDate}}"
       },
       "event": [
         {
@@ -161,23 +238,135 @@
       ]
     },
     {
-      "name": "Consumer - Get My Reservations",
+      "name": "Producer - Earnings",
       "request": {
         "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{consumer_token}}"
-          }
-        ],
-        "url": "{{baseUrl}}/consumers/me/myreservations"
+        "header": [{ "key": "Authorization", "value": "Bearer {{producer_token}}" }],
+        "url": "{{baseUrl}}/producers/me/earnings"
       },
       "event": [
         {
           "listen": "test",
           "script": {
             "exec": [
-              "pm.test('Consumer reservations OK', () => pm.response.to.have.status(200));",
+              "pm.test('Earnings OK', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.expect(body).to.have.property('totalEarnings');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Producer - Stats",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{producer_token}}" }],
+        "url": "{{baseUrl}}/producers/me/stats"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Stats OK', () => pm.response.to.have.status(200));",
+              "pm.expect(pm.response.json()).to.be.an('object');"
+            ]
+          }
+        }
+      ]
+    },
+
+
+
+    {
+      "name": "Auth - Login Consumer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{consumer_email}}\",\n  \"password\": \"{{consumer_password}}\"\n}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.test('Consumer login OK', () => pm.response.to.have.status(200));",
+              "pm.environment.set('consumer_token', json.accessToken);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Consumer - Create Reservation",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{consumer_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"producerProfileId\": 1,\n  \"date\": \"{{bookingDate}}\",\n  \"hour\": 10,\n  \"requestedKwh\": 5\n}"
+        },
+        "url": "{{baseUrl}}/consumers/me/reservations"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Create reservation OK', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.environment.set('reservationId', body.id);",
+              "console.log('reservationId set to:', body.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Consumer - Update / Cancel Reservation",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{consumer_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requestedKwh\": 3\n}"
+        },
+        "url": "{{baseUrl}}/consumers/me/updatereservations/{{reservationId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": ["pm.test('Update/cancel OK', () => pm.response.to.have.status(200));"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Consumer - Purchases",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{consumer_token}}" }],
+        "url": "{{baseUrl}}/consumers/me/purchases"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Purchases OK', () => pm.response.to.have.status(200));",
               "pm.expect(pm.response.json()).to.be.an('array');"
             ]
           }
@@ -185,122 +374,40 @@
       ]
     },
     {
-  "name": "Consumer - Purchases (Day 8)",
-  "request": {
-    "method": "GET",
-    "header": [
-      {
-        "key": "Authorization",
-        "value": "Bearer {{consumer_token}}"
-      }
-    ],
-    "url": "{{baseUrl}}/consumers/me/purchases"
-  },
-  "event": [
-    {
-      "listen": "test",
-      "script": {
-        "exec": [
-          "pm.test('Purchases OK', () => pm.response.to.have.status(200));",
-          "pm.expect(pm.response.json()).to.be.an('array');"
-        ]
-      }
-    }
-  ]
-},
-{
-  "name": "Consumer - Carbon Footprint (Day 8)",
-  "request": {
-    "method": "GET",
-    "header": [
-      {
-        "key": "Authorization",
-        "value": "Bearer {{consumer_token}}"
-      }
-    ],
-    "url": "{{baseUrl}}/consumers/me/carbon"
-  },
-  "event": [
-    {
-      "listen": "test",
-      "script": {
-        "exec": [
-          "pm.test('Carbon OK', () => pm.response.to.have.status(200));",
-          "const body = pm.response.json();",
-          "pm.expect(body).to.have.property('totalCo2_g');"
-        ]
-      }
-    }
-  ]
-},
-{
-  "name": "Producer - Earnings (Day 8)",
-  "request": {
-    "method": "GET",
-    "header": [
-      {
-        "key": "Authorization",
-        "value": "Bearer {{producer_token}}"
-      }
-    ],
-    "url": "{{baseUrl}}/producers/me/earnings"
-  },
-  "event": [
-    {
-      "listen": "test",
-      "script": {
-        "exec": [
-          "pm.test('Earnings OK', () => pm.response.to.have.status(200));",
-          "const body = pm.response.json();",
-          "pm.expect(body).to.have.property('totalEarnings');"
-        ]
-      }
-    }
-  ]
-},
-{
-  "name": "Producer - Stats (Day 8)",
-  "request": {
-    "method": "GET",
-    "header": [
-      {
-        "key": "Authorization",
-        "value": "Bearer {{producer_token}}"
-      }
-    ],
-    "url": "{{baseUrl}}/producers/me/stats"
-  },
-  "event": [
-    {
-      "listen": "test",
-      "script": {
-        "exec": [
-          "pm.test('Stats OK', () => pm.response.to.have.status(200));",
-          "pm.expect(pm.response.json()).to.be.an('object');"
-        ]
-      }
-    }
-  ]
-},
-    {
-      "name": "Protected - Dummy Ping",
+      "name": "Consumer - Carbon Footprint",
       "request": {
         "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{admin_token}}"
-          }
-        ],
-        "url": "{{baseUrl}}/protected/ping"
+        "header": [{ "key": "Authorization", "value": "Bearer {{consumer_token}}" }],
+        "url": "{{baseUrl}}/consumers/me/carbon"
       },
       "event": [
         {
           "listen": "test",
           "script": {
             "exec": [
-              "pm.test('Protected ping OK', () => pm.response.to.have.status(200));"
+              "pm.test('Carbon OK', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.expect(body).to.have.property('totalCo2_g');"
             ]
+          }
+        }
+      ]
+    },
+
+
+
+    {
+      "name": "Protected - Dummy Ping",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+        "url": "{{baseUrl}}/protected/ping"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": ["pm.test('Protected ping OK', () => pm.response.to.have.status(200));"]
           }
         }
       ]

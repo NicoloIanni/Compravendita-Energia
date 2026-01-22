@@ -27,7 +27,7 @@ export default {
     }
 
     // 3️⃣ dati reservation
-    const requestedKwh = 1;
+    const requestedKwh = 5;
     const totalCost = requestedKwh * slot.pricePerKwh;
 
     if (consumer.credit < totalCost) {
@@ -42,7 +42,7 @@ export default {
         date: slot.date,
         hour: slot.hour,
         requestedKwh,
-        allocatedKwh: 0,
+        allocatedKwh: 5,
         status: "PENDING",
         totalCostCharged: totalCost,
         createdAt: new Date(),
