@@ -15,7 +15,6 @@
 - [Postman & Newman](#postman--newman)
 - [UML](#uml)
 - [Design Pattern](#design-pattern)
-- [Roadmap](#roadmap)
 - [Autori](#autori)
 
 ---
