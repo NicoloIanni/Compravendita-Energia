@@ -74,29 +74,68 @@ Il sistema calcola CO₂ come:
 
 ## Regole di dominio
 
-- **Prenotazione vincolata alla finestra temporale (24h)**  
-  Uno slot è prenotabile **solo se l’inizio dello slot è strettamente oltre 24 ore rispetto al momento attuale**.  
-  Implementazione: `slotStart > now + 24h`
+- **Oggi per domani**
+  - Il sistema lavora su slot del **giorno successivo** (domani).
+  - Ogni slot è identificato da:
+    - `date` (YYYY-MM-DD)
+    - `hour` (0–23)
 
-- **Slot esistente**
-  Una prenotazione può essere creata solo se esiste uno slot per:
-  - `producerProfileId`
-  - `date`
-  - `hour`  
-  In caso contrario → errore `SLOT_NOT_FOUND`
+- **Vincolo 24h (prenotazione / modifica / cancellazione)**
+  - Uno slot è prenotabile **solo se l’inizio dello slot è strettamente oltre 24 ore rispetto al momento attuale**:
+    - Implementazione: `slotStart > now + 24h`
+  - Modifica/cancellazione:
+    - **oltre 24h** → possibili rimborsi (dove previsti)
+    - **entro 24h** → **NO refund** (l’addebito resta)
 
-- **Credito sufficiente**
-  Il consumer deve avere credito ≥ costo totale (`requestedKwh * pricePerKwh`)  
-  In caso contrario → errore `INSUFFICIENT_CREDIT`
+- **Creazione prenotazione (consumer)**
+  - La prenotazione viene creata solo se:
+    - lo slot esiste (`SLOT_NOT_FOUND` se non esiste)
+    - mancano almeno **24h** all’inizio dello slot (`SLOT_NOT_BOOKABLE_24H`)
+    - il consumer ha credito sufficiente (`INSUFFICIENT_CREDIT`)
+    - `requestedKwh` è valido (minimo `>= 0.1`)
+  - Se la prenotazione va a buon fine:
+    - viene scalato il credito in modo consistente
+    - la prenotazione viene salvata in stato **`PENDING`**
 
-- **Prenotazioni concorrenti**
-  La creazione della prenotazione e la scalatura del credito avvengono in **un’unica transaction**
-  per evitare race condition.
+- **Modifica / cancellazione prenotazione (consumer)**
+  - L’operazione è soggetta al vincolo **24h**:
+    - **oltre 24h** → se la quantità diminuisce o viene annullata → rimborso della differenza (coerente col credito)
+    - **entro 24h** → **NO refund** (addebito invariato)
 
-- **Stato iniziale**
-  Ogni prenotazione nasce con stato **PENDING**.
-  L’allocazione effettiva (ALLOCATED / taglio proporzionale) è demandata a un’azione del producer.
+- **Resolve producer (allocazione energia)**
+  - Le prenotazioni nascono **`PENDING`** e vengono chiuse solo con l’azione del producer (`resolve`).
+  - In fase di resolve, per ogni `date` + `hour`:
+    - si calcola `sumRequestedKwh` (somma delle richieste PENDING)
+    - si confronta con `capacityKwh`
+  - Se `sumRequestedKwh <= capacityKwh`:
+    - strategia **NoCut** → `allocatedKwh = requestedKwh`
+  - Se `sumRequestedKwh > capacityKwh`:
+    - strategia **ProportionalCut** → `allocatedKwh = requestedKwh * (capacityKwh / sumRequestedKwh)`
+  - Al termine:
+    - le prenotazioni vengono aggiornate con `allocatedKwh`
+    - lo stato viene chiuso (es. **`ALLOCATED`**)
 
+- **Rimborso differenze post-resolve**
+  - Se dopo resolve `allocatedKwh < requestedKwh`:
+    - `refund = (requestedKwh - allocatedKwh) * pricePerKwh`
+
+- **Carbon footprint (CO₂)**
+  - La CO₂ viene calcolata sull’energia effettiva allocata:
+    - `co2_g = allocatedKwh * co2_g_per_kwh`
+  - Output:
+    - dettaglio per slot acquistato
+    - totale su intervallo (anche in kg)
+
+- **Earnings producer**
+  - Ricavi calcolati sugli acquisti effettivi:
+    - somma di `allocatedKwh * pricePerKwh` (o campo equivalente “charged”)
+
+- **Stats producer (% venduta per fascia oraria)** DA MODIFICARE
+  - Per ogni ora (0–23) su un intervallo di date:
+    - `%sold = (kWh allocati / capacityKwh) * 100`
+  - Output per fascia oraria:
+    - `min`, `max`, `avg`, `std`
+    - 
 ---
 
 ## Stack
@@ -167,10 +206,16 @@ Di seguito un riepilogo delle rotte principali implementate nel progetto:
 | `POST`  | `/auth/login` | Login utente e generazione JWT |
 | `GET`   | `/health` | Healthcheck dell’API |
 | `GET`   | `/protected/ping` | Endpoint protetto di verifica JWT |
-| `PATCH` | `/producers/me/slots/capacity` | Aggiorna in batch la capacità degli slot (kWh) per un producer autenticato |
-| `PATCH` | `/producers/me/slots/price` | Aggiorna in batch il prezzo degli slot (credit/kWh) per un producer autenticato |
-| `POST`  | `/consumers/me/reservations` | Crea una prenotazione di energia per un consumer autenticato (stato iniziale `PENDING`) |
-| `GET`   | `/producers/me/requests` | Visualizza le richieste ricevute per un producer e la % di occupazione per fascia oraria (filtrabile) |
+| `PATCH` | `/producers/me/slots/capacity` | DA AGGIORNARE CON PRICE + CAPACITY |
+| `GET`   | `/producers/me/requests` | Overview richieste per fascia oraria e % occupazione (filtrabile) |
+| `POST`  | `/producers/me/requests/resolve` | Risolve le richieste dei consumatori (allocazione, taglio proporzionale, rimborsi) |
+| `GET`   | `/producers/me/stats` | Statistiche DA AGGIORNARE |
+| `GET`   | `/producers/me/earnings` | Guadagni del produttore su intervallo temporale |
+| `POST`  | `/consumers/me/reservations` | Crea prenotazione di uno slot (stato iniziale `PENDING`) |
+| `PATCH` | `/consumers/me/reservations/:id` | Modifica quantità o cancella (regola 24h + refund/penale) | DA VEDERE
+| `GET`   | `/consumers/me/purchases` | Lista acquisti filtrabile per produttore, tipo di energia ed intervallo temporale |
+| `GET`   | `/consumers/me/carbon` | Calcolo impronta di carbonio su intervallo temporale (dettaglio + totale) |
+
 
 ### Comportamento dei controller
 
@@ -196,17 +241,6 @@ I controller relativi alle rotte sopra seguono queste regole:
 - **Transazioni atomiche (slot producer)**
   - Tutti gli aggiornamenti vengono eseguiti in una transazione
   - Se anche un singolo elemento è invalido, **nessuna modifica viene applicata**
-
-- **Regole di dominio (prenotazioni consumer)**
-  - La prenotazione viene creata solo se:
-    - lo slot esiste (`SLOT_NOT_FOUND` se non esiste)
-    - mancano almeno **24h** all’inizio dello slot (`SLOT_NOT_BOOKABLE_24H`)
-    - il consumer ha credito sufficiente (`INSUFFICIENT_CREDIT`)
-    - `requestedKwh` è valido (minimo > 0)
-  - Se la prenotazione va a buon fine:
-    - viene scalato il credito in modo consistente
-    - la prenotazione viene salvata in stato **`PENDING`**
-  - Tutta l’operazione avviene in **transaction** (creazione prenotazione + scalatura credito) per evitare inconsistenze con richieste concorrenti
 
 ---
 
@@ -289,8 +323,7 @@ npm test
 ```
 Nota operativa: eseguendo npm test, ad ogni run avviene il reset completo del database e poi vengono eseguite automaticamente le migration e la seed (inizializzazione), così da garantire uno stato coerente e ripetibile ad ogni esecuzione della suite.
 
-La suite di test automatici include scenari che verificano il comportamento corretto delle API per l’aggiornamento di capacity e price, tenendo conto sia dei casi validi che di alcuni casi di errore.
-
+La suite di test automatici copre i principali flussi dell’applicazione, includendo autenticazione, gestione slot, prenotazioni, regole 24h, allocazioni proporzionali e rimborsi.
 
 Di seguito alcuni esempi rappresentativi:
 
@@ -378,6 +411,15 @@ d’ambiente per:
 - credenziali di test
 - token JWT (salvato automaticamente dopo il login)
 
+#### Installazione Postman
+Su sistemi Linux (Ubuntu/Debian), Postman può essere installato tramite **Snap**:
+```bash
+sudo snap install postman
+```
+Una volta installato, importare i file forniti nel progetto:
+- postman/CompravenditaEnergia.postman_collection.json
+- postman/CompravenditaEnergia.postman_environment.json
+
 ### Newman
 Newman è l’esecuzione **da linea di comando** delle collection Postman.
 Permette di rendere i test API:
@@ -388,14 +430,10 @@ Permette di rendere i test API:
 È particolarmente utile in fase di consegna, perché consente di dimostrare
 il corretto funzionamento dell’API in modo oggettivo.
 
-Esecuzione tipica:
+### Installazione Newman (consigliata: locale al progetto)
 ```bash
-npx newman run postman/CompravenditaEnergia.postman_collection.json \
-  -e postman/CompravenditaEnergia.postman_environment.json
+npm i -D newman
 ```
-
-> Postman = test manuale e comodo.  
-> Newman = stesso test, ma automatizzato e ripetibile.
 
 ### Alcuni Endpoint coperti dalla collection
 - `GET /health` → `200 OK`
@@ -410,16 +448,7 @@ npx newman run postman/CompravenditaEnergia.postman_collection.json \
 > Se cambiano le credenziali di seed è necessario aggiornare le variabili nell’environment Postman.  
 > Per le rotte protette, la collection usa `Authorization: Bearer {{jwt_token}}`.
 
-### Installazione Newman (consigliata: locale al progetto)
-```bash
-npm i -D newman
-```
 
-### Esecuzione test (con npx) SERVE?
-```bash
-npx newman run postman/CompravenditaEnergia.postman_collection.json \
-  -e postman/CompravenditaEnergia.postman_environment.json
-```
 ###OUTPUT ATTESO DA METTERE???
 La suite Newman deve completarsi senza errori (0 failed), confermando:
 - API raggiungibile (`/health`)
