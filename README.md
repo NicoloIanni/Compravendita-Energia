@@ -476,7 +476,6 @@ In particolare:
 
 ![Use Case](docs/uml/img/use-case.png)
 
----
 
 ### Sequence Diagram – Reservation
 Il diagramma di sequenza mostra il flusso completo di **creazione di una prenotazione** lato consumer.
@@ -494,16 +493,36 @@ anche in presenza di richieste concorrenti.
 
 ![Reservation Sequence](docs/uml/img/reservation.png)
 
----
 
 ### Sequence Diagram – Cancellation
 Il diagramma descrive il processo di cancellazione di una prenotazione,
 inclusa la valutazione della finestra temporale e l’eventuale rimborso.
 
-Questo flusso verrà completato nelle fasi successive del progetto
-(Day 5: modifica/cancellazione).
-
 ![Cancellation Sequence](docs/uml/img/Sequence-cancel.png)
+
+
+### Sequence Diagram - Resolve
+Il diagramma di sequenza descrive il processo con cui il producer risolve le prenotazioni
+in stato PENDING per una determinata data, applicando se necessario il taglio proporzionale
+in caso di oversubscription.
+
+Sono evidenziati:
+
+- verifica del JWT e del ruolo producer;
+- recupero degli slot orari e delle prenotazioni pendenti;
+- calcolo della domanda totale per ciascuna fascia oraria;
+- selezione della strategia di allocazione (NoCut / ProportionalCut);
+- aggiornamento delle prenotazioni con il valore di allocatedKwh;
+- rimborso delle differenze economiche ai consumer, quando l’allocato è inferiore al richiesto.
+
+![Resolve Sequence](docs/uml/img/sequence-resolve.png)
+
+
+### Sequence Diagram - Carbon
+Il diagramma di sequenza descrive il calcolo dell’impronta di carbonio (CO₂) lato consumer,
+basato esclusivamente sull’energia effettivamente allocata a seguito del processo di resolve.
+
+![Carbon Sequence](docs/uml/img/sequence-carbon.png)
 
 ---
 
@@ -569,31 +588,25 @@ con le informazioni dell’utente autenticato.
 Questo evita duplicazioni di codice e mantiene separata la logica di sicurezza
 dalla logica applicativa.
 
-### Strategy Pattern DA MODIFICARE
+### Strategy Pattern
 
-Lo **Strategy Pattern** verrà introdotto nelle fasi successive del progetto
-per gestire in modo flessibile le politiche di allocazione dell’energia.
+Lo Strategy Pattern è utilizzato per gestire in modo flessibile le politiche
+di allocazione dell’energia durante la fase di resolve delle prenotazioni
+lato producer.
 
-In particolare sono previste:
-- una strategia **senza taglio** (richieste ≤ capacità);
-- una strategia di **taglio proporzionale lineare** (oversubscription).
+In base al rapporto tra domanda totale e capacità disponibile dello slot,
+il sistema seleziona dinamicamente la strategia di allocazione più appropriata.
 
-Questo approccio permetterà di estendere facilmente il sistema con nuove
-politiche di allocazione senza modificare la logica esistente.
+In particolare sono implementate:
 
----
+- NoCutStrategy
+  - applicata quando la somma delle richieste è minore o uguale alla capacità;
+  - ogni prenotazione riceve allocatedKwh = requestedKwh.
 
-## Roadmap
-- **Giorno 1**: repo + setup + docker-compose + health + stub auth + test base ✅
-- **Giorno 2**: modelli Sequelize + associazioni + seed + JWT reale ✅
-- **Giorno 3**: producer slot capacity/price (batch) + validazioni ✅
-- **Giorno 4**: consumer prenotazione (`PENDING`) + regola 24h + scalatura credito (transaction) ✅
-- **Giorno 5**: modifica/cancellazione prenotazione + refund/penale ✅
-- **Giorno 6**: producer view richieste + % occupazione ✅
-- **Giorno 7**: resolve proporzionale + allocazioni + refund differenze (transaction)
-- **Giorno 8**: purchases filter + carbon footprint + earnings + stats JSON
-- **Giorno 9**: test Jest completi + Postman collection + Newman
-- **Giorno 10**: pulizia finale + UML completo + documentazione consegnabile
+- ProportionalCutStrategy
+  - applicata in caso di oversubscription (richieste > capacità);
+  - l’energia viene allocata tramite taglio lineare proporzionale:
+    - allocatedKwh = requestedKwh * (capacity / sumRequested).
 
 ---
 
