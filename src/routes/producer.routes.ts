@@ -2,13 +2,12 @@ import { Router } from "express";
 import { authenticateJWT } from "../middlewares/auth";
 import { roleMiddleware } from "../middlewares/role";
 import { resolveProducerRequests } from "../controller/producerResolveController";
-
 import { upsertSlots } from "../controller/producerSlotsController";
-
 import { getProducerRequestsOverview } from "../services/ProducerRequestService";
 import {
   getMyEarnings,
   getMyStats,
+  getMyStatsChart,
 } from "../controller/producerStatsController";
 
 const router = Router();
@@ -86,5 +85,13 @@ router.get(
   roleMiddleware("producer"),
   getMyStats
 );
+
+router.get(
+  "/me/stats/chart",
+  authenticateJWT,
+  roleMiddleware("producer"),
+  getMyStatsChart 
+);
+
 
 export default router;

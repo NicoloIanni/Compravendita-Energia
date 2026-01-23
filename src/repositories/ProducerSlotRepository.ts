@@ -4,6 +4,10 @@ import type { Transaction } from "sequelize";
 import { Op } from "sequelize";
 import ProducerSlot from "../models/ProducerSlot";
 
+function normalize(d?: Date): string | undefined {
+  return d ? d.toISOString().slice(0, 10) : undefined;
+}
+
 export class ProducerSlotRepository {
   private model: typeof ProducerSlot;
 
@@ -81,28 +85,31 @@ async upsertBatch(
       order: [["hour", "ASC"]],
     });
   }
-  async findByProducerAndRange(input: {
-    producerProfileId: number;
-    from?: Date;
-    to?: Date;
-  }): Promise<ProducerSlot[]> {
-    return this.model.findAll({
-      where: {
-        producerProfileId: input.producerProfileId,
-        ...(input.from || input.to
-          ? {
+async findByProducerAndRange(input: {
+  producerProfileId: number;
+  from?: Date;
+  to?: Date;
+}): Promise<ProducerSlot[]> {
+  const from = normalize(input.from);
+  const to = normalize(input.to);
+
+  return this.model.findAll({
+    where: {
+      producerProfileId: input.producerProfileId,
+      ...(from || to
+        ? {
             date: {
-              ...(input.from && { [Op.gte]: input.from }),
-              ...(input.to && { [Op.lte]: input.to }),
+              ...(from && { [Op.gte]: from }),
+              ...(to && { [Op.lte]: to }),
             },
           }
-          : {}),
-      },
-      order: [
-        ["date", "ASC"],
-        ["hour", "ASC"],
-      ],
-    });
-  }
+        : {}),
+    },
+    order: [
+      ["date", "ASC"],
+      ["hour", "ASC"],
+    ],
+  });
+}
 }
 
