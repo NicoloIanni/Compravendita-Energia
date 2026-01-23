@@ -9,6 +9,14 @@ import { ProducerSlotRepository } from "../repositories/ProducerSlotRepository";
 import { ReservationRepository } from "../repositories/ReservationRepository";
 import { Op } from "sequelize";
 
+function buildSlotDate(date: string, hour: number): Date {
+  const year = Number(date.slice(0, 4));
+  const month = Number(date.slice(5, 7)) - 1;
+  const day = Number(date.slice(8, 10));
+
+  return new Date(year, month, day, hour, 0, 0, 0);
+}
+
 /**
  * Errori di dominio (verranno mappati dal middleware)
  */
@@ -63,7 +71,8 @@ async createReservation(
     throw new DomainError("INVALID_HOUR");
   }
 
-  const slotStart = startOfHour(new Date(`${date}T${hour}:00:00`));
+  const slotStart = startOfHour(buildSlotDate(date, hour));
+
   const now = new Date();
   const limit = addHours(now, 24);
   if (!isAfter(slotStart, limit)) {
@@ -237,9 +246,10 @@ async createReservation(
       // =========================
       // 2. Calcolo slotStart
       // =========================
-      const slotStart = startOfHour(
-        new Date(`${reservation.date}T${reservation.hour}:00:00`)
-      );
+     const slotStart = startOfHour(
+  buildSlotDate(reservation.date, reservation.hour)
+);
+
 
       const now = new Date();
       const limit = addHours(now, 24);
@@ -297,7 +307,8 @@ async createReservation(
         if (consumer.credit < deltaCost) {
           throw new DomainError("INSUFFICIENT_CREDIT");
         }
-        consumer.credit -= deltaCost;
+        consumer.credit = Number((consumer.credit - deltaCost).toFixed(3));
+
       } else if (deltaCost < 0) {
         consumer.credit += Math.abs(deltaCost);
       }
@@ -312,8 +323,10 @@ async createReservation(
       }
 
       reservation.requestedKwh = requestedKwh;
-      reservation.totalCostCharged =
-        requestedKwh * slot.pricePerKwh;
+      reservation.totalCostCharged = Number(
+  (requestedKwh * slot.pricePerKwh).toFixed(3)
+);
+
 
       await this.reservationRepository.save(reservation, tx);
 

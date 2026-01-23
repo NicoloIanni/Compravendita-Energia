@@ -1,10 +1,21 @@
 import { Request, Response, NextFunction } from "express";
 import { producerStatsService } from "../container";
 import { ChartJSNodeCanvas } from "chartjs-node-canvas";
+import { registerFont } from "canvas";
 
-const width = 800;
-const height = 400;
-const chartCanvas = new ChartJSNodeCanvas({ width, height });
+registerFont(
+  "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+  { family: "DejaVu Sans" }
+);
+
+const chartCanvas = new ChartJSNodeCanvas({
+  width: 800,
+  height: 400,
+  chartCallback: (ChartJS) => {
+    ChartJS.defaults.font.family = "DejaVu Sans";
+    ChartJS.defaults.font.size = 12;
+  },
+});
 
 /**
  * GET /producers/me/earnings
