@@ -1,5 +1,12 @@
 export function calcStats(values: number[]) {
-  if (values.length === 0) return null;
+  if (values.length === 0) {
+    return {
+      minPercent: 0,
+      maxPercent: 0,
+      avgPercent: 0,
+      stdDev: 0,
+    };
+  }
 
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -8,7 +15,12 @@ export function calcStats(values: number[]) {
   const variance =
     values.reduce((s, v) => s + Math.pow(v - avg, 2), 0) / values.length;
 
-  const std = Math.sqrt(variance);
+  const stdDev = Math.sqrt(variance);
 
-  return { min, max, avg, std };
+  return {
+    minPercent: Number(min.toFixed(2)),
+    maxPercent: Number(max.toFixed(2)),
+    avgPercent: Number(avg.toFixed(2)),
+    stdDev: Number(stdDev.toFixed(2)),
+  };
 }
