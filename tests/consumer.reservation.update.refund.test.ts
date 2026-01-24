@@ -42,6 +42,7 @@ describe("Consumer reservation update with refund (>24h)", () => {
       hour,
       capacityKwh: 20,
       pricePerKwh: 2,
+      deleted: false,
     });
 
     // =========================
@@ -83,35 +84,35 @@ describe("Consumer reservation update with refund (>24h)", () => {
   });
 
 
-it("should refund credit when reducing requested kWh", async () => {
+  it("should refund credit when reducing requested kWh", async () => {
 
 
-  const url = `/consumers/me/updatereservations/${reservationId}`;
+    const url = `/consumers/me/updatereservations/${reservationId}`;
 
 
-  const res = await request(app)
-    .patch(url)
-    .set("Authorization", `Bearer ${token}`)
-    .send({
-      requestedKwh: 6,
-    });
+    const res = await request(app)
+      .patch(url)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        requestedKwh: 6,
+      });
 
 
 
-  expect(res.status).toBe(200);
-  expect(res.body.message).toBe("Reservation modificata correttamente");
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe("Reservation modificata correttamente");
 
-  const updatedConsumer = await User.findByPk(consumer.id);
+    const updatedConsumer = await User.findByPk(consumer.id);
 
 
-  expect(updatedConsumer).not.toBeNull();
-  expect(updatedConsumer!.credit).toBe(88);
-});
+    expect(updatedConsumer).not.toBeNull();
+    expect(updatedConsumer!.credit).toBe(88);
+  });
 
   afterAll(async () => {
-  await ProducerSlot.destroy({ where: { producerProfileId: producerProfile.id } });
-  await ProducerProfile.destroy({ where: { id: producerProfile.id } });
-  await User.destroy({ where: { id: consumer.id } });
-});
+    await ProducerSlot.destroy({ where: { producerProfileId: producerProfile.id } });
+    await ProducerProfile.destroy({ where: { id: producerProfile.id } });
+    await User.destroy({ where: { id: consumer.id } });
+  });
 
 });

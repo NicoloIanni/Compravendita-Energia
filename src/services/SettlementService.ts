@@ -3,24 +3,24 @@ import { UserRepository } from "../repositories/UserRepository";
 import { ProducerSlotRepository } from "../repositories/ProducerSlotRepository";
 import { ReservationRepository } from "../repositories/ReservationRepository";
 
-import { NoCutStrategy } from "../strategies/NoCutStrategy";
-import { ProportionalCutStrategy } from "../strategies/ProportionalCutStrategy";
-import { AllocationStrategy } from "../strategies/AllocationStrategy";
+import { AllocationStrategyFactory } from "../strategies/AllocationStrategyFactory";
 
 export class SettlementService {
   constructor(
     private userRepository: UserRepository,
     private producerSlotRepository: ProducerSlotRepository,
     private reservationRepository: ReservationRepository
-  ) {}
+  ) { }
 
   async resolveDay(producerProfileId: number, date: string) {
-    return sequelize.transaction(async (t) => {
-      const slots = await this.producerSlotRepository.findForResolveByProducerAndDate(
-        producerProfileId,
-        date,
-        t
-      );
+    return sequelize.transaction(async (tx) => {
+      // prendo tutti gli slot per la data
+      const slots =
+        await this.producerSlotRepository.findForResolveByProducerAndDate(
+          producerProfileId,
+          date,
+          tx
+        );
 
       let resolvedHours = 0;
       let oversubscribedHours = 0;
@@ -31,89 +31,73 @@ export class SettlementService {
             producerProfileId,
             date,
             slot.hour,
-            t
+            tx
           );
 
+        // se non ci sono richieste, passo oltre
         if (reservations.length === 0) continue;
 
-        const capacity = slot.capacityKwh;
-        const price = slot.pricePerKwh;
-
-        const sumRequested = reservations.reduce(
-          (s, r) => s + r.requestedKwh,
+        const totalRequested = reservations.reduce(
+          (sum, r) => sum + r.requestedKwh,
           0
         );
 
-        let allocations = new Map<number, number>();
+        if (totalRequested > slot.capacityKwh) {
+          oversubscribedHours++;
+        }
 
-// SE NON oversubscription
-if (sumRequested <= capacity) {
-  for (const r of reservations) {
-    allocations.set(r.id, r.requestedKwh);
-  }
-} else {
-  oversubscribedHours++;
+        // selezione della strategy di allocazione
+        const strategy = AllocationStrategyFactory.select(
+          totalRequested,
+          slot.capacityKwh
+        );
 
-  // calcolo proporzionale
-  const factor = capacity / sumRequested;
-  let allocatedSoFar = 0;
+        const allocations = strategy.allocate(reservations, slot);
 
-  for (const r of reservations) {
-    const alloc = parseFloat((r.requestedKwh * factor).toFixed(6));
-    allocations.set(r.id, alloc);
-    allocatedSoFar += alloc;
-  }
-
-  // corregge eventuali scarti di rounding
-  const roundingDiff = parseFloat(
-    (capacity - allocatedSoFar).toFixed(6)
-  );
-
-  if (roundingDiff !== 0 && reservations.length > 0) {
-    const firstId = reservations[0].id;
-    const corrected = parseFloat(
-      ((allocations.get(firstId) ?? 0) + roundingDiff).toFixed(6)
-    );
-    allocations.set(firstId, corrected);
-  }
-}
-        const refundsByConsumer = new Map<number, number>();
-
-        for (const r of reservations) {
-          const allocated = allocations.get(r.id)!;
-          const allocatedClamped = Math.min(allocated, r.requestedKwh);
-
-          const refundKwh = Number(
-            (r.requestedKwh - allocatedClamped).toFixed(3)
-          );
-
-          if (refundKwh > 0) {
-            const refund = Number((refundKwh * price).toFixed(3));
-            refundsByConsumer.set(
-              r.consumerId,
-              Number(
-                ((refundsByConsumer.get(r.consumerId) ?? 0) + refund).toFixed(3)
-              )
+        // aggiorno tutte le reservation
+        for (const reservation of reservations) {
+          const allocatedKwh = allocations.get(reservation.id);
+          if (allocatedKwh === undefined) {
+            throw new Error(
+              `Allocation missing for reservation ${reservation.id}`
             );
           }
 
-          r.allocatedKwh = allocatedClamped;
-          r.totalCostCharged = Number(
-            (allocatedClamped * price).toFixed(3)
-          );
-          r.status = "ALLOCATED";
+          reservation.allocatedKwh = allocatedKwh;
+          reservation.status = "ALLOCATED";
 
-          await this.reservationRepository.save(r, t);
+          reservation.totalCostCharged =
+            allocatedKwh * slot.pricePerKwh;
+
+          await this.reservationRepository.save(reservation, tx);
+
+          // refund se c’è stato taglio
+          if (allocatedKwh < reservation.requestedKwh) {
+            const refund =
+              (reservation.requestedKwh - allocatedKwh) *
+              slot.pricePerKwh;
+
+            const consumer = await this.userRepository.findByIdForUpdate(
+              reservation.consumerId,
+              tx
+            );
+
+            consumer.credit = Number(consumer.credit) + refund;
+            await this.userRepository.save(consumer, tx);
+          }
         }
 
-        for (const [consumerId, refund] of refundsByConsumer) {
-          const consumer = await this.userRepository.findByIdForUpdate(
-            consumerId,
-            t
-          );
-          consumer.credit = Number((consumer.credit + refund).toFixed(3));
-          await this.userRepository.save(consumer, t);
-        }
+        // =============================
+        // SOFT DELETE DELLO SLOT
+        // =============================
+        await this.producerSlotRepository.softDelete(
+          {
+            producerProfileId: slot.producerProfileId,
+            date: slot.date,
+            hour: slot.hour,
+          },
+          tx
+        );
 
         resolvedHours++;
       }

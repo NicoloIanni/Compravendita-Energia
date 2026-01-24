@@ -1,4 +1,3 @@
-
 import {
   Table,
   Model,
@@ -19,9 +18,10 @@ import type { InferAttributes, InferCreationAttributes } from "sequelize";
     },
   ],
 })
-export default class ProducerSlot extends Model <
-InferAttributes <ProducerSlot>,
-InferCreationAttributes <ProducerSlot>> {
+export default class ProducerSlot extends Model<
+  InferAttributes<ProducerSlot>,
+  InferCreationAttributes<ProducerSlot>
+> {
   @ForeignKey(() => require("./ProducerProfile").default)
   @Column(DataType.INTEGER)
   producerProfileId!: number;
@@ -37,6 +37,20 @@ InferCreationAttributes <ProducerSlot>> {
 
   @Column({ type: DataType.FLOAT, allowNull: false })
   pricePerKwh!: number;
+
+  // === soft-delete flags ===
+  @Column({
+    type: DataType.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+  })
+  deleted!: boolean;
+
+  @Column({
+    type: DataType.DATE,
+    allowNull: true,
+  })
+  deletedAt!: Date | null;
 
   @BelongsTo(() => require("./ProducerProfile").default)
   producerProfile?: any;

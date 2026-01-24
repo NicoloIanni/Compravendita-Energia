@@ -1,5 +1,3 @@
-// src/repositories/ProducerSlotRepository.ts
-
 import type { Transaction } from "sequelize";
 import { Op } from "sequelize";
 import ProducerSlot from "../models/ProducerSlot";
@@ -19,16 +17,15 @@ export class ProducerSlotRepository {
     return ProducerSlot.create(data, options);
   }
 
-async upsertBatch(
-  slots: Partial<ProducerSlot>[],
-  transaction: Transaction
-): Promise<void> {
-  await this.model.bulkCreate(slots as any, {
-    transaction,
-    updateOnDuplicate: ["capacityKwh", "pricePerKwh", "updatedAt"],
-  });
-}
-
+  async upsertBatch(
+    slots: Partial<ProducerSlot>[],
+    transaction: Transaction
+  ): Promise<void> {
+    await this.model.bulkCreate(slots as any, {
+      transaction,
+      updateOnDuplicate: ["capacityKwh", "pricePerKwh", "updatedAt"],
+    });
+  }
 
   async findByProducerDateHour(
     producerProfileId: number,
@@ -41,6 +38,7 @@ async upsertBatch(
         producerProfileId,
         date,
         hour,
+        deleted: false, // ❗ escludo soft deleted
       },
       transaction,
     });
@@ -59,6 +57,7 @@ async upsertBatch(
       where: {
         producerProfileId,
         date,
+        deleted: false, // ❗ escludo soft deleted
         hour: {
           [Op.between]: [fromHour, toHour],
         },
@@ -69,6 +68,8 @@ async upsertBatch(
 
   // =====================================================
   // DAY 7 – resolve richieste (WRITE + LOCK)
+  // Qui non filtro deleted perché resolve deve
+  // processare tutti gli slot programmati per la data
   // =====================================================
   async findForResolveByProducerAndDate(
     producerProfileId: number,
@@ -85,31 +86,56 @@ async upsertBatch(
       order: [["hour", "ASC"]],
     });
   }
-async findByProducerAndRange(input: {
-  producerProfileId: number;
-  from?: Date;
-  to?: Date;
-}): Promise<ProducerSlot[]> {
-  const from = normalize(input.from);
-  const to = normalize(input.to);
 
-  return this.model.findAll({
-    where: {
-      producerProfileId: input.producerProfileId,
-      ...(from || to
-        ? {
+  async findByProducerAndRange(input: {
+    producerProfileId: number;
+    from?: Date;
+    to?: Date;
+  }): Promise<ProducerSlot[]> {
+    const from = normalize(input.from);
+    const to = normalize(input.to);
+
+    return this.model.findAll({
+      where: {
+        producerProfileId: input.producerProfileId,
+        ...(from || to
+          ? {
             date: {
               ...(from && { [Op.gte]: from }),
               ...(to && { [Op.lte]: to }),
             },
           }
-        : {}),
-    },
-    order: [
-      ["date", "ASC"],
-      ["hour", "ASC"],
-    ],
-  });
-}
-}
+          : {}),
+      },
+      order: [
+        ["date", "ASC"],
+        ["hour", "ASC"],
+      ],
+    });
+  }
 
+
+  // =============================
+  // Soft-delete per slot resolve
+  // =============================
+  async softDelete(
+    where: {
+      producerProfileId: number;
+      date: string;
+      hour: number;
+    },
+    transaction?: Transaction
+  ): Promise<[number, ProducerSlot[]]> {
+    return this.model.update(
+      {
+        deleted: true,
+        deletedAt: new Date(),
+      },
+      {
+        where,
+        transaction,
+        returning: true,
+      }
+    );
+  }
+}

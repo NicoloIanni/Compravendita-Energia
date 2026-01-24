@@ -1,17 +1,20 @@
+// src/strategies/NoCutStrategy.ts
+
 import { AllocationStrategy } from "./AllocationStrategy";
-import  Reservation  from "../models/Reservation";
+import Reservation from "../models/Reservation";
+import ProducerSlot from "../models/ProducerSlot";
 
 export class NoCutStrategy implements AllocationStrategy {
   allocate(
     reservations: Reservation[],
-    capacityKwh: number
+    slot: ProducerSlot
   ): Map<number, number> {
-    const result = new Map<number, number>();
+    const allocations = new Map<number, number>();
 
-    for (const r of reservations) {
-      result.set(r.id, r.requestedKwh);
+    for (const reservation of reservations) {
+      allocations.set(reservation.id, reservation.requestedKwh);
     }
 
-    return result;
+    return allocations;
   }
 }

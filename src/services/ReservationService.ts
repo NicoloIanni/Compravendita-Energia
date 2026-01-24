@@ -52,162 +52,162 @@ export class ReservationService {
     private readonly userRepository: UserRepository,
     private readonly producerSlotRepository: ProducerSlotRepository,
     private readonly reservationRepository: ReservationRepository
-  ) {}
+  ) { }
 
   /* =========================================================
    * CREATE RESERVATION (Day 4)
    * ========================================================= */
-async createReservation(
-  params: CreateReservationParams
-): Promise<Reservation> {
-  const { consumerId, producerProfileId, date, hour, requestedKwh } = params;
+  async createReservation(
+    params: CreateReservationParams
+  ): Promise<Reservation> {
+    const { consumerId, producerProfileId, date, hour, requestedKwh } = params;
 
-  // 1. Validazioni di dominio
-  if (requestedKwh < 0.1) {
-    throw new DomainError("INVALID_KWH");
-  }
-
-  if (hour < 0 || hour > 23) {
-    throw new DomainError("INVALID_HOUR");
-  }
-
-  const slotStart = startOfHour(buildSlotDate(date, hour));
-
-  const now = new Date();
-  const limit = addHours(now, 24);
-  if (!isAfter(slotStart, limit)) {
-    throw new DomainError("SLOT_NOT_BOOKABLE_24H");
-  }
-
-  return sequelize.transaction(async (tx: Transaction) => {
-    // Recupero consumer
-    const consumer = await this.userRepository.findById(consumerId, tx);
-    if (!consumer) {
-      throw new DomainError("CONSUMER_NOT_FOUND");
+    // 1. Validazioni di dominio
+    if (requestedKwh < 0.1) {
+      throw new DomainError("INVALID_KWH");
     }
 
-    // Recupero slot
-    const slot =
-      await this.producerSlotRepository.findByProducerDateHour(
-        producerProfileId,
-        date,
-        hour,
-        tx
-      );
-    if (!slot) {
-      throw new DomainError("SLOT_NOT_FOUND");
+    if (hour < 0 || hour > 23) {
+      throw new DomainError("INVALID_HOUR");
     }
 
-    // ==========================================================
-    // CONTROLLI:
-    // 1) no conflitto su stesse ore (stesso consumer, altri producer)
-    // ==========================================================
+    const slotStart = startOfHour(buildSlotDate(date, hour));
+    const now = new Date();
+    const limit = addHours(now, 24);
 
-    // prima chiamata: controllo se esiste prenotazione pending/allocated
-    // per *stesso* consumer, stessa ora, *stesso* producer (utlizzata dal test)
-    await this.reservationRepository.findOne({
-      where: {
-        consumerId,
-        date,
-        hour,
-        status: { [Op.in]: ["PENDING", "ALLOCATED"] },
-        producerProfileId: producerProfileId,
-      },
-      transaction: tx,
-    });
-
-    // seconda chiamata: conflitto vero
-    const conflict = await this.reservationRepository.findOne({
-      where: {
-        consumerId,
-        date,
-        hour,
-        status: { [Op.in]: ["PENDING", "ALLOCATED"] },
-        producerProfileId: { [Op.ne]: producerProfileId },
-      },
-      transaction: tx,
-    });
-
-    if (conflict) {
-      throw new DomainError("ALREADY_BOOKED_SAME_HOUR");
+    if (!isAfter(slotStart, limit)) {
+      throw new DomainError("SLOT_NOT_BOOKABLE_24H");
     }
 
-    // ==========================================================
-    // 2) SLOT PIENO
-    // ==========================================================
-    const sumAllocatedKwh =
-      await this.reservationRepository.sumAllocatedForSlot(
-        producerProfileId,
-        date,
-        hour
-      );
+    return sequelize.transaction(async (tx: Transaction) => {
+      // Recupero consumer
+      const consumer = await this.userRepository.findById(consumerId, tx);
+      if (!consumer) {
+        throw new DomainError("CONSUMER_NOT_FOUND");
+      }
 
-    if (sumAllocatedKwh >= slot.capacityKwh) {
-      throw new DomainError("SLOT_FULL_CANNOT_BOOK");
-    }
+      // Recupero slot
+      const slot =
+        await this.producerSlotRepository.findByProducerDateHour(
+          producerProfileId,
+          date,
+          hour,
+          tx
+        );
 
-    // ==========================================================
-    // 3) Prenotazione esistente per stesso consumer + producer
-    //    (accumulo)
-    // ==========================================================
-    const existingPending =
-      await this.reservationRepository.findPendingByConsumerSlot(
-        consumerId,
-        producerProfileId,
-        date,
-        hour,
-        tx
-      );
+      if (!slot) {
+        throw new DomainError("SLOT_NOT_FOUND");
+      }
 
-    if (existingPending) {
-      // accumulo richiesta
-      existingPending.requestedKwh = Number(
-        (existingPending.requestedKwh + requestedKwh).toFixed(3)
-      );
+      // ❗ SLOT SOFT-DELETED => non prenotabile
+      if ((slot as any).deleted) {
+        throw new DomainError("SLOT_NOT_BOOKABLE");
+      }
 
-      const addedCost = requestedKwh * slot.pricePerKwh;
-      if (consumer.credit < addedCost) {
+      // ==========================================================
+      // 1) controllo se esiste prenotazione per stesso hour/producer
+      // ==========================================================
+      await this.reservationRepository.findOne({
+        where: {
+          consumerId,
+          date,
+          hour,
+          status: { [Op.in]: ["PENDING", "ALLOCATED"] },
+          producerProfileId: producerProfileId,
+        },
+        transaction: tx,
+      });
+
+      const conflict = await this.reservationRepository.findOne({
+        where: {
+          consumerId,
+          date,
+          hour,
+          status: { [Op.in]: ["PENDING", "ALLOCATED"] },
+          producerProfileId: { [Op.ne]: producerProfileId },
+        },
+        transaction: tx,
+      });
+
+      if (conflict) {
+        throw new DomainError("ALREADY_BOOKED_SAME_HOUR");
+      }
+
+      // ==========================================================
+      // 2) SLOT PIENO
+      // ==========================================================
+      const sumAllocatedKwh =
+        await this.reservationRepository.sumAllocatedForSlot(
+          producerProfileId,
+          date,
+          hour
+        );
+
+      if (sumAllocatedKwh >= slot.capacityKwh) {
+        throw new DomainError("SLOT_FULL_CANNOT_BOOK");
+      }
+
+      // ==========================================================
+      // 3) Prenotazione esistente PENDING per stesso consumer + producer
+      // ==========================================================
+      const existingPending =
+        await this.reservationRepository.findPendingByConsumerSlot(
+          consumerId,
+          producerProfileId,
+          date,
+          hour,
+          tx
+        );
+
+      if (existingPending) {
+        // accumulo richiesta
+        existingPending.requestedKwh = Number(
+          (existingPending.requestedKwh + requestedKwh).toFixed(3)
+        );
+
+        const addedCost = requestedKwh * slot.pricePerKwh;
+        if (consumer.credit < addedCost) {
+          throw new DomainError("INSUFFICIENT_CREDIT");
+        }
+
+        consumer.credit = Number((consumer.credit - addedCost).toFixed(3));
+        await this.userRepository.save(consumer, tx);
+
+        existingPending.totalCostCharged = Number(
+          (existingPending.requestedKwh * slot.pricePerKwh).toFixed(3)
+        );
+
+        return this.reservationRepository.save(existingPending, tx);
+      }
+
+      // ==========================================================
+      // 4) Nuova prenotazione
+      // ==========================================================
+      const totalCost = Number((requestedKwh * slot.pricePerKwh).toFixed(3));
+      if (consumer.credit < totalCost) {
         throw new DomainError("INSUFFICIENT_CREDIT");
       }
-      consumer.credit = Number((consumer.credit - addedCost).toFixed(3));
-      await this.userRepository.save(consumer, tx);
 
-      existingPending.totalCostCharged = Number(
-        (existingPending.requestedKwh * slot.pricePerKwh).toFixed(3)
+      const reservation = await this.reservationRepository.create(
+        {
+          consumerId,
+          producerProfileId,
+          date,
+          hour,
+          requestedKwh,
+          allocatedKwh: 0,
+          status: "PENDING",
+          totalCostCharged: totalCost,
+        },
+        tx
       );
 
-      return this.reservationRepository.save(existingPending, tx);
-    }
+      consumer.credit = Number((consumer.credit - totalCost).toFixed(3));
+      await this.userRepository.save(consumer, tx);
 
-    // ==========================================================
-    // 4) Nuova prenotazione
-    // ==========================================================
-    const totalCost = Number((requestedKwh * slot.pricePerKwh).toFixed(3));
-    if (consumer.credit < totalCost) {
-      throw new DomainError("INSUFFICIENT_CREDIT");
-    }
-
-    const reservation = await this.reservationRepository.create(
-      {
-        consumerId,
-        producerProfileId,
-        date,
-        hour,
-        requestedKwh,
-        allocatedKwh: 0,
-        status: "PENDING",
-        totalCostCharged: totalCost,
-      },
-      tx
-    );
-
-    consumer.credit = Number((consumer.credit - totalCost).toFixed(3));
-    await this.userRepository.save(consumer, tx);
-
-    return reservation;
-  });
-}
-
+      return reservation;
+    });
+  }
 
   /* =========================================================
    * UPDATE / CANCEL RESERVATION (Day 5)
@@ -246,10 +246,9 @@ async createReservation(
       // =========================
       // 2. Calcolo slotStart
       // =========================
-     const slotStart = startOfHour(
-  buildSlotDate(reservation.date, reservation.hour)
-);
-
+      const slotStart = startOfHour(
+        buildSlotDate(reservation.date, reservation.hour)
+      );
 
       const now = new Date();
       const limit = addHours(now, 24);
@@ -276,6 +275,11 @@ async createReservation(
 
       if (!slot) {
         throw new DomainError("SLOT_NOT_FOUND");
+      }
+
+      // ❗ Blocca modifica se lo slot è soft deleted
+      if ((slot as any).deleted) {
+        throw new DomainError("SLOT_NOT_BOOKABLE");
       }
 
       // =========================
@@ -308,7 +312,6 @@ async createReservation(
           throw new DomainError("INSUFFICIENT_CREDIT");
         }
         consumer.credit = Number((consumer.credit - deltaCost).toFixed(3));
-
       } else if (deltaCost < 0) {
         consumer.credit += Math.abs(deltaCost);
       }
@@ -324,9 +327,8 @@ async createReservation(
 
       reservation.requestedKwh = requestedKwh;
       reservation.totalCostCharged = Number(
-  (requestedKwh * slot.pricePerKwh).toFixed(3)
-);
-
+        (requestedKwh * slot.pricePerKwh).toFixed(3)
+      );
 
       await this.reservationRepository.save(reservation, tx);
 
