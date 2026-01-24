@@ -1,8 +1,11 @@
-import  Reservation  from "../models/Reservation";
+// src/strategies/AllocationStrategy.ts
+
+import Reservation from "../models/Reservation";
+import ProducerSlot from "../models/ProducerSlot";
 
 export interface AllocationStrategy {
   allocate(
     reservations: Reservation[],
-    capacityKwh: number
-  ): Map<number, number>;
+    slot: ProducerSlot
+  ): Map<number, number>; // reservationId -> allocatedKwh
 }

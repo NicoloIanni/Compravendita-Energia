@@ -117,11 +117,11 @@ export class ReservationRepository {
         },
         ...(filters.from || filters.to
           ? {
-              date: {
-                ...(filters.from && { [Op.gte]: filters.from }),
-                ...(filters.to && { [Op.lte]: filters.to }),
-              },
-            }
+            date: {
+              ...(filters.from && { [Op.gte]: filters.from }),
+              ...(filters.to && { [Op.lte]: filters.to }),
+            },
+          }
           : {}),
       },
       include: [
@@ -152,29 +152,38 @@ export class ReservationRepository {
     from?: Date;
     to?: Date;
   }): Promise<Reservation[]> {
+
+    const fromDate = filters.from
+      ? filters.from.toISOString().slice(0, 10)
+      : undefined;
+
+    const toDate = filters.to
+      ? filters.to.toISOString().slice(0, 10)
+      : undefined;
+
     return Reservation.findAll({
       where: {
         status: "ALLOCATED",
-        ...(filters.from || filters.to
+        producerProfileId: filters.producerProfileId, // 🔥 QUI ERA IL BUG
+        ...(fromDate || toDate
           ? {
-              date: {
-                ...(filters.from && { [Op.gte]: filters.from }),
-                ...(filters.to && { [Op.lte]: filters.to }),
-              },
-            }
+            date: {
+              ...(fromDate && { [Op.gte]: fromDate }),
+              ...(toDate && { [Op.lte]: toDate }),
+            },
+          }
           : {}),
       },
       include: [
         {
           model: ProducerProfile,
-          where: {
-            id: filters.producerProfileId,
-          },
-          required: true,
+          required: false, // opzionale, non filtra
         },
       ],
     });
   }
+
+
 
   /* =========================
    * Find pending by consumer + slot (exists pending)

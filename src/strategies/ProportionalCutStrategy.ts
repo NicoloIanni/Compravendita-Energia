@@ -1,25 +1,29 @@
+// src/strategies/ProportionalCutStrategy.ts
+
 import { AllocationStrategy } from "./AllocationStrategy";
-import  Reservation  from "../models/Reservation";
+import Reservation from "../models/Reservation";
+import ProducerSlot from "../models/ProducerSlot";
 
 export class ProportionalCutStrategy implements AllocationStrategy {
   allocate(
     reservations: Reservation[],
-    capacityKwh: number
+    slot: ProducerSlot
   ): Map<number, number> {
-    const result = new Map<number, number>();
-
     const totalRequested = reservations.reduce(
       (sum, r) => sum + r.requestedKwh,
       0
     );
 
-    const ratio = capacityKwh / totalRequested;
+    const ratio = slot.capacityKwh / totalRequested;
+    const allocations = new Map<number, number>();
 
-    for (const r of reservations) {
-      const allocated = Number((r.requestedKwh * ratio).toFixed(3));
-      result.set(r.id, allocated);
+    for (const reservation of reservations) {
+      allocations.set(
+        reservation.id,
+        reservation.requestedKwh * ratio
+      );
     }
 
-    return result;
+    return allocations;
   }
 }
