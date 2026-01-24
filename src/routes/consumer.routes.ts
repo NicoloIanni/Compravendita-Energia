@@ -3,8 +3,9 @@
 import { Router } from "express";
 import { authenticateJWT } from "../middlewares/auth";
 import { roleMiddleware } from "../middlewares/role";
-import { ConsumerReservationController } from "../controller/consumerReservations.controller";
+import { ConsumerReservationController } from "../controller/consumerController";
 import  {consumerQueryService, reservationService } from "../container";
+import { listProducersWithSlots } from "../controller/consumerController";
 
 
 
@@ -49,6 +50,12 @@ router.get(
   authenticateJWT,
   roleMiddleware("consumer"),
   controller.getMyCarbon
+);
+router.get(
+  "/me/producers",
+  authenticateJWT,
+  roleMiddleware("consumer"),
+  listProducersWithSlots
 );
 
 

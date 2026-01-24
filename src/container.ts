@@ -9,7 +9,7 @@ import { ReservationRepository } from "./repositories/ReservationRepository";
 
 import { ReservationService } from "./services/ReservationService";
 import { SettlementService } from "./services/SettlementService";
-import { ConsumerQueryService } from "./services/ConsumerQueryService";
+import { ConsumerQueryService } from "./services/ConsumerService";
 import { ProducerStatsService } from "./services/ProducerStatsService";
 import { AdminService } from "./services/AdminService";
 

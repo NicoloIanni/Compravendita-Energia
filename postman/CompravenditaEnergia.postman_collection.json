@@ -202,6 +202,34 @@
       ]
     },
     {
+  "name": "Producer - Update Slot",
+  "request": {
+    "method": "PATCH",
+    "header": [
+      {
+        "key": "Authorization",
+        "value": "Bearer {{producer_token}}",
+        "type": "text"
+      },
+      {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+      }
+    ],
+    "body": {
+      "mode": "raw",
+      "raw": "{\n  \"updates\": [\n    {\n      \"date\": \"{{bookingDate}}\",\n      \"hour\": 10,\n      \"capacityKwh\": 50,\n      \"pricePerKwh\": 0.15\n    }\n  ]\n}"
+    },
+    "url": {
+      "raw": "{{baseUrl}}/producers/me/updateslot",
+      "host": ["{{base_url}}"],
+      "path": ["producers", "me", "updateslot"]
+    }
+  },
+  "response": []
+},
+    {
       "name": "Producer - View Requests",
       "request": {
         "method": "GET",
@@ -388,6 +416,30 @@
         }
       ]
     },
+    {
+  "name": "Consumer - Get All Producers With Slots",
+  "request": {
+    "method": "GET",
+    "header": [
+      {
+        "key": "Authorization",
+        "value": "Bearer {{consumer_token}}",
+        "type": "text"
+      }
+    ],
+    "url": {
+      "raw": "{{baseUrl}}/consumers/me/producers",
+      "host": [
+        "{{base_url}}"
+      ],
+      "path": [
+        "me",
+        "producers"
+      ]
+    }
+  },
+  "response": []
+},
     {
       "name": "Consumer - Purchases",
       "request": {

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { authenticateJWT } from "../middlewares/auth";
 import { roleMiddleware } from "../middlewares/role";
 import { resolveProducerRequests } from "../controller/producerResolveController";
-import { upsertSlots } from "../controller/producerSlotsController";
+import { updateSlot, upsertSlots } from "../controller/producerSlotsController";
 import { getProducerRequestsOverview } from "../services/ProducerRequestService";
 import {
   getMyEarnings,
@@ -91,6 +91,12 @@ router.get(
   authenticateJWT,
   roleMiddleware("producer"),
   getMyStatsChart 
+);
+router.patch(
+  "/me/updateslot",
+  authenticateJWT,
+  roleMiddleware("producer"),
+  updateSlot
 );
 
 
