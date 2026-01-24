@@ -1,6 +1,7 @@
 import { ReservationRepository } from "../repositories/ReservationRepository";
-import ProducerProfile from "../models/ProducerProfile";
 import Reservation from "../models/Reservation";
+
+
 
 export class ConsumerQueryService {
   constructor(private reservationRepo: ReservationRepository) {}

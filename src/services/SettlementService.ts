@@ -3,9 +3,6 @@ import { UserRepository } from "../repositories/UserRepository";
 import { ProducerSlotRepository } from "../repositories/ProducerSlotRepository";
 import { ReservationRepository } from "../repositories/ReservationRepository";
 
-import { NoCutStrategy } from "../strategies/NoCutStrategy";
-import { ProportionalCutStrategy } from "../strategies/ProportionalCutStrategy";
-import { AllocationStrategy } from "../strategies/AllocationStrategy";
 
 export class SettlementService {
   constructor(

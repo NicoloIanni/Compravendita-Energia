@@ -1,9 +1,9 @@
-// src/routes/admin.routes.ts
+
 
 import { Router } from "express";
 import { authenticateJWT } from "../middlewares/auth";
 import { roleMiddleware } from "../middlewares/role";
-import { AdminController } from "../controller/admin.controller";
+import { AdminController } from "../controller/adminController";
 import { adminService } from "../container";
 
 const router = Router();

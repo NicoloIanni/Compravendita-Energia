@@ -1,6 +1,11 @@
 import { Request, Response, NextFunction } from "express";
 import { ReservationService } from "../services/ReservationService";
-import { ConsumerQueryService } from "../services/ConsumerQueryService";
+import { ConsumerQueryService } from "../services/ConsumerService";
+import { ProducerService } from "../services/ProducerSlotService";
+import { ProducerProfileRepository } from "../repositories/ProducerProfileRepository";
+import { ProducerSlotRepository } from "../repositories/ProducerSlotRepository";
+import ProducerSlot from "../models/ProducerSlot";
+
 
 export class ConsumerReservationController {
   constructor(
@@ -156,5 +161,35 @@ export class ConsumerReservationController {
     } catch (err) {
       next(err);
     }
-  };
+  };  
 }
+
+
+/**
+ * GET /consumers/me/producers
+ * Lista tutti i producer con slot formattati
+ */
+const producerService = new ProducerService(
+  new ProducerProfileRepository(),
+  new ProducerSlotRepository({ producerSlotModel: ProducerSlot })
+);
+export const listProducersWithSlots = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { date } = req.query;
+
+    // importa istanza del service
+    const results = await producerService.getAllWithSlots(
+      date as string | undefined
+    );
+
+    return res.status(200).json(results);
+  } catch (err) {
+    next(err);
+  }
+};
+
+
