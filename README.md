@@ -7,7 +7,6 @@
 - [Requisiti](#requisiti)
 - [Regole di dominio](#regole-di-dominio)
 - [Stack](#stack)
-- [Struttura repository](#struttura-repository)
 - [API](#api)
 - [Configurazione](#configurazione)
 - [Avvio rapido (Docker)](#avvio-rapido-docker)
@@ -78,7 +77,7 @@ Il sistema calcola CO₂ come:
   - Ogni slot è identificato da:
     - `date` (YYYY-MM-DD)
     - `hour` (0–23)
-
+   
 - **Vincolo 24h (prenotazione / modifica / cancellazione)**
   - Uno slot è prenotabile **solo se l’inizio dello slot è strettamente oltre 24 ore rispetto al momento attuale**:
     - Implementazione: `slotStart > now + 24h`
@@ -129,12 +128,22 @@ Il sistema calcola CO₂ come:
   - Ricavi calcolati sugli acquisti effettivi:
     - somma di `allocatedKwh * pricePerKwh` (o campo equivalente “charged”)
 
-- **Stats producer (% venduta per fascia oraria)** DA MODIFICARE
-  - Per ogni ora (0–23) su un intervallo di date:
-    - `%sold = (kWh allocati / capacityKwh) * 100`
+- **Stats producer (% energia venduta per fascia oraria)**
+  - Il producer può calcolare statistiche di vendita su un intervallo temporale.
+  - Le statistiche sono calcolate **per fascia oraria (0–23)** e si basano sull’energia
+    **effettivamente allocata** dopo la fase di resolve (quindi solo vendite “reali”).
+  - Per ogni fascia oraria `h`, e per ciascun giorno dell’intervallo considerato:
+    - `%sold(d,h) = (allocatedKwh(d,h) / capacityKwh(d,h)) * 100`
+  - Gli slot con `capacityKwh = 0` non vengono considerati nel calcolo (evita divisioni non significative).
   - Output per fascia oraria:
-    - `min`, `max`, `avg`, `std`
-    - 
+    - **min**: percentuale minima venduta
+    - **max**: percentuale massima venduta
+    - **avg**: percentuale media venduta
+    - **std**: deviazione standard della percentuale venduta
+  - Formati disponibili:
+    - **JSON**: `GET /producers/me/stats?from=YYYY-MM-DD&to=YYYY-MM-DD`
+    - **Grafico (Chart.js)**: `GET /producers/me/stats/chart?from=YYYY-MM-DD&to=YYYY-MM-DD`
+
 ---
 
 ## Stack
@@ -148,51 +157,6 @@ Il sistema calcola CO₂ come:
 
 ---
 
-## Struttura repository DA AGGIORNARE, SERVE?
-```text
-.
-├─ docker-compose.yaml
-├─ Dockerfile
-├─ .env
-├─ package.json
-├─ tsconfig.json
-├─ postman
-│  ├─ CompravenditaEnergia.postman_collection.json
-│  └─ CompravenditaEnergia.postman_environment.json
-├─ docs
-│  └─ uml
-│     └─ img
-│        ├─ use-case.png
-│        ├─ reservation.png
-│        └─ Sequence-cancel.png
-└─ src
-   ├─ app.ts
-   ├─ server.ts
-   ├─ config
-   │  ├─ env.ts
-   │  └─ db.ts
-   ├─ middlewares
-   │  ├─ auth.ts
-   │  └─ errorHandler.ts
-   ├─ routes
-   │  ├─ health.routes.ts
-   │  ├─ auth.routes.ts
-   │  └─ protected.routes.ts
-   ├─ services
-   │  └─ producerSlotService.ts
-   ├─ repositories
-   │  └─ producerSlotRepository.ts
-   ├─ controller
-   │  └─ producerSlotsController.ts
-   ├─ seed
-   │  └─ seed.ts
-   └─ tests
-      ├─ health.test.ts
-      ├─ producerSlots.capacity.test.ts
-      └─ producerSlots.price.test.ts
-```
----
-
 ## API
 
 Questa sezione descrive gli endpoint relativi alla gestione della **capacità** e del **prezzo** degli slot energetici per i produttori, e l’endpoint di **prenotazione** per i consumer. Sono illustrate le rotte disponibili, i requisiti di autenticazione/autorizzazione, le regole di validazione e il comportamento generale dei controller.
@@ -202,18 +166,23 @@ Di seguito un riepilogo delle rotte principali implementate nel progetto:
 
 | Metodo | Percorso | Descrizione |
 |--------|----------|-------------|
-| `POST`  | `/auth/login` | Login utente e generazione JWT |
 | `GET`   | `/health` | Healthcheck dell’API |
+| `POST`  | `/auth/login` | Login utente (admin/producer/consumer) e generazione JWT |
 | `GET`   | `/protected/ping` | Endpoint protetto di verifica JWT |
-| `PATCH` | `/producers/me/slots/capacity` | DA AGGIORNARE CON PRICE + CAPACITY |
-| `GET`   | `/producers/me/requests` | Overview richieste per fascia oraria e % occupazione (filtrabile) |
-| `POST`  | `/producers/me/requests/resolve` | Risolve le richieste dei consumatori (allocazione, taglio proporzionale, rimborsi) |
-| `GET`   | `/producers/me/stats` | Statistiche DA AGGIORNARE |
-| `GET`   | `/producers/me/earnings` | Guadagni del produttore su intervallo temporale |
-| `POST`  | `/consumers/me/reservations` | Crea prenotazione di uno slot (stato iniziale `PENDING`) |
-| `PATCH` | `/consumers/me/reservations/:id` | Modifica quantità o cancella (regola 24h + refund/penale) | DA VEDERE
-| `GET`   | `/consumers/me/purchases` | Lista acquisti filtrabile per produttore, tipo di energia ed intervallo temporale |
-| `GET`   | `/consumers/me/carbon` | Calcolo impronta di carbonio su intervallo temporale (dettaglio + totale) |
+| `POST`  | `/admin/producers` | Creazione di un producer (utente + profilo producer) |
+| `POST`  | `/admin/consumers` | Creazione di un consumer (utente + credito iniziale) |
+| `GET`   | `/admin/producers` | Elenco producer registrati |
+| `GET`   | `/admin/consumers` | Elenco consumer registrati |
+| `PATCH` | `/producers/me/slots` | Creazione o aggiornamento batch degli slot del producer (capacity e/o price per data e ora) |
+| `GET`   | `/producers/me/requests` | Overview richieste per fascia oraria e % di occupazione |
+| `POST`  | `/producers/me/requests/resolve` | Resolve delle richieste: allocazione energia, taglio proporzionale e rimborsi |
+| `GET`   | `/producers/me/earnings` | Guadagni del producer su intervallo temporale |
+| `GET`   | `/producers/me/stats` | Statistiche di vendita per fascia oraria (min / max / avg / std) in JSON |
+| `GET`   | `/producers/me/stats/chart` | Statistiche di vendita per fascia oraria in grafico PNG (Chart.js) |
+| `POST`  | `/consumers/me/reservations` | Creazione prenotazione (stato iniziale `PENDING`) |
+| `PATCH` | `/consumers/me/updatereservations/reservationId` | Modifica o cancellazione prenotazione (vincolo 24h, con o senza rimborso) |
+| `GET`   | `/consumers/me/purchases` | Elenco acquisti filtrabile (producer / energyType / intervallo) |
+| `GET`   | `/consumers/me/carbon` | Carbon footprint (dettaglio per slot + totale su intervallo) |
 
 
 ### Comportamento dei controller
@@ -249,7 +218,7 @@ Il progetto utilizza variabili d’ambiente per configurare l’API, la connessi
 e il sistema di autenticazione JWT.
 
 Le variabili vengono lette:
-- in **Docker Compose** (servizio `api`) tramite i file indicati nella configurazione di Compose (`.env`);
+- in **Docker Compose** (servizio `api`) tramite il file `.env.docker`;
 - in **esecuzione locale (dev)** tramite il file `.env`.
 
 ### Variabili richieste
@@ -272,7 +241,7 @@ Le variabili vengono lette:
 
 - `DB_USER`: utente del database (es. `app`)
 
-- `DB_PASS`: password del database (es. `app` in ambiente di sviluppo)
+- `DB_PASSWORD`: password del database (es. `app` in ambiente di sviluppo)
 
 ---
 
@@ -313,7 +282,7 @@ docker compose up --build
 
 ---
 
-## Test DA MODIFICARE
+## Test MAGARI AGGIUNGERE ALTRI TEST PIU' COMPLESSI
 I test automatici verificano che l’API risponda correttamente sugli endpoint principali e che le **regole di dominio** siano applicate in modo consistente. Sono scritti con **Jest** e **Supertest** e vengono eseguiti contro l’API Express, con database reale (PostgreSQL) avviato tramite Docker.
 
 Esecuzione:
@@ -326,69 +295,148 @@ La suite di test automatici copre i principali flussi dell’applicazione, inclu
 
 Di seguito alcuni esempi rappresentativi:
 
-#### 1. 🟢 Test – Capacity aggiornata correttamente
+#### 1. 🟢 Test – Creazione prenotazione valida (credito scalato + stato PENDING)
 
-Questo test verifica che l’endpoint di aggiornamento della capacity accetti un input valido e ritorni lo stato 200 OK, con conferma di successo.
-Assicura inoltre che il producer autenticato possa aggiornare correttamente la capacità dell’orario specificato.
+Questo test verifica che un consumer possa creare correttamente una prenotazione valida per uno slot prenotabile e che il sistema applichi correttamente le regole di dominio.
+In particolare, il test assicura che:
+- il credito del consumer venga scalato in modo atomico;
+- la prenotazione venga creata in stato iniziale PENDING.
 
-**Endpoint**: PATCH /producers/me/slots/capacity
+**Endpoint**: POST /consumers/me/reservations
 
-**Headers**: Authorization: Bearer <JWT>, Content-Type: application/json
-
-**Body**:
-```json
-[
-  { "date": "2026-01-20", "hour": 10, "capacityKwh": 50 }
-]
-```
-Expected Response: HTTP/1.1 200 OK
-```json
-[
-  { "success": true }
-]
-```
-
-#### 2. 🔴 Test – Price non valido: hour fuori range
-Questo test verifica che l’endpoint price rifiuti correttamente un valore di hour fuori dal range accettato (0–23).
-Il server ritorna 400 Bad Request con messaggio di errore esplicativo.
-
-**Endpoint**: PATCH /producers/me/slots/capacity
-
-**Headers**: Authorization: Bearer <JWT>, Content-Type: application/json
+**Headers**: Authorization: Bearer `<consumer_token>`, Content-Type: application/json
 
 **Body**:
 ```json
-[
-  { "date": "2026-03-10", "hour": 25, "pricePerKwh": 20 }
-]
+{
+  "producerProfileId": 1,
+  "date": "2026-01-20",
+  "hour": 10,
+  "requestedKwh": 5,
+}
 ```
+
+Expected Response: HTTP/1.1 201 Created
+```json
+{
+   "id": 2,
+  "consumerId": 3,
+  "producerProfileId": 1,
+  "date": "2026-01-20",
+  "hour": 10,
+  "requestedKwh": 5,
+  "allocatedKwh": 0,
+  "status": "PENDING",
+  "totalCostCharged": 10
+}
+```
+
+#### 2. 🔴 Test – Creazione prenotazione non valida: quantità inferiore al minimo
+Questo test verifica che il sistema rifiuti correttamente una prenotazione con una quantità di energia inferiore al minimo consentito (0.1 kWh).
+
+**Endpoint**: PATCH /consumers/me/reservations
+
+**Headers**: Authorization: Bearer `<consumer_token>`, Content-Type: application/json
+
+**Body**:
+```json
+{
+  "producerProfileId": 1,
+  "date": "2026-01-20",
+  "hour": 11,
+  "requestedKwh": 0.05
+}
+```
+
 Expected Response: HTTP/1.1 400 Bad Request
 ```json
 [
-  { "error": "hour deve essere tra 0 e 23" }
+   "error": "INVALID_KWH"
 ]
 ```
 
-#### 3. 🔴 Test – Ruolo non autorizzato (non producer)
-Questo test verifica che un utente autenticato con ruolo diverso da producer
-non possa aggiornare capacity/price e riceva 403 Forbidden.
+#### 3. 🟢 Test – Overview richieste producer per fascia oraria
 
-**Endpoint**: PATCH /producers/me/slots/price
+Questo test verifica che il producer possa ottenere una vista aggregata delle richieste dei consumer per una determinata giornata, suddivisa per fascia oraria.
 
-**Headers**: Authorization: Bearer <JWT (ruolo non producer)>, Content-Type: application/json
+Dimostra:
+- corretta esposizione delle richieste PENDING;
+- calcolo della percentuale di occupazione rispetto alla capacità;
+- corretto filtraggio per data.
+
+**Endpoint**: GET /producers/me/requests?date=2026-01-21
+
+**Headers**: Authorization: Bearer `<producer_token>`
+
+Precondizioni: 
+- `Slot 2026-01-21, hour=10:`
+  - `capacityKwh = 100`
+  - richieste PENDING:
+    - consumer A → `requestedKwh = 30`
+    - consumer B → `requestedKwh = 20`
+- domanda totale: `50 kWh`
 
 **Body**:
 ```json
-[
-  { "date": "2026-03-10", "hour": 14, "pricePerKwh": 30 }
-]
+[ ]
 ```
-Expected Response: HTTP/1.1 403 Forbidden
+
+Expected Response: HTTP/1.1 200 OK
 ```json
 [
-  { "error": "Accesso non consentito" }
+  {
+    "hour": 10,
+    "capacityKwh": 100,
+    "requestedKwh": 50,
+    "occupancyPercent": 50
+  }
 ]
 ```
+
+#### 4. 🟢 Test – Resolve producer con oversubscription (ProportionalCutStrategy + refund)
+Questo test verifica che, in caso di oversubscription, il sistema:
+- applichi il taglio proporzionale;
+- aggiorni correttamente allocatedKwh;
+- rimborsi automaticamente la differenza economica ai consumer.
+
+**Endpoint**: POST /producers/me/requests/resolve?date=2026-01-22
+
+**Headers**: Authorization: Bearer `<producer_token>`
+
+Precondizioni: 
+- `capacityKwh = 100, pricePerKwh = 10`
+  - richieste PENDING:
+    - consumer A → `requestedKwh = 80`
+    - consumer B → `requestedKwh = 70`
+- `sumRequestedKwh = 150 > capacityKwh`
+- 
+Allocazione attesa:
+- fattore di taglio = 100 / 150 = 0.6667
+- consumer A → allocatedKwh ≈ 53.33
+- consumer B → allocatedKwh ≈ 46.67
+
+**Body**:
+```json
+[ ]
+```
+
+Expected Response: HTTP/1.1 200 OK
+```json
+[
+  {
+    "date": 2026-01-22,
+    "resolvedHours": 1,
+    "oversubscribedHours": 0
+  }
+]
+```
+
+Post-condizioni attese:
+- prenotazioni aggiornate a stato `ALLOCATED`;
+- `allocatedKwh < requestedKwh;`
+- rimborso: refund = (requestedKwh - allocatedKwh) * pricePerKwh
+- credito consumer aggiornato correttamente.
+  
 ---
 
 ## Postman & Newman
@@ -439,8 +487,8 @@ npm i -D newman
 - `POST /auth/login` → `200 OK` e ritorna `{ "accessToken": "<JWT>" }` con credenziali valide
 - `POST /auth/login` (wrong password) → `401 Unauthorized`
 - `GET /protected/ping` (con token) → `200 OK`
-- `PATCH /producers/me/slots/capacity` (producer + body valido) → `200 OK`
-- `PATCH /producers/me/slots/price` (validazione fallita) → `400 Bad Request`
+- `PATCH /producers/me/slots` (producer + body valido) → `200 OK`
+- `PATCH /producers/me/slots` (validazione fallita) → `400 Bad Request`
 - `POST /consumers/me/reservations` (consumer + richiesta valida) → `201 Created` (prenotazione in stato `PENDING`)
 
 > Nota: la collection usa variabili d’ambiente Postman (`admin_email`, `admin_password`) e salva automaticamente il token in `jwt_token` (e per compatibilità anche in `jwt`).  
@@ -448,12 +496,17 @@ npm i -D newman
 > Per le rotte protette, la collection usa `Authorization: Bearer {{jwt_token}}`.
 
 
-###OUTPUT ATTESO DA METTERE???
-La suite Newman deve completarsi senza errori (0 failed), confermando:
-- API raggiungibile (`/health`)
-- login valido produce un token JWT
-- casi negativi (`400/401`) gestiti correttamente
-- endpoint protetto accessibile solo con Bearer token valido
+### Output atteso (Newman)
+La suite Newman deve completarsi senza errori, con:
+- **0 failed**
+- **0 errors**
+
+Questo conferma che:
+- l’API è raggiungibile (`/health`);
+- il login con credenziali valide genera un JWT (`/auth/login`);
+- i casi negativi (`400/401`) sono gestiti correttamente;
+- l’endpoint protetto risponde solo con `Authorization: Bearer <token>` valido.
+
 
 ### Troubleshooting (le 3 cause tipiche)
 1. **401 su /auth/login** → credenziali non valide (variabili Postman `admin_email`, `admin_password`) oppure utenti di test non inizializzati tramite seed.
@@ -527,23 +580,25 @@ basato esclusivamente sull’energia effettivamente allocata a seguito del proce
 
 ## Design Pattern
 
-L’architettura del progetto è progettata per separare chiaramente le responsabilità
-tra i vari livelli dell’applicazione, riducendo il coupling e rendendo il codice
-più testabile, manutenibile ed estendibile.
-
-### Repository Pattern
-
-Il **Repository Pattern** è utilizzato per isolare l’accesso al database
+Il Repository Pattern è utilizzato per isolare completamente l’accesso al database
 dalla logica di business, incapsulando l’uso diretto di Sequelize.
 
-Ogni repository espone metodi specifici per il dominio applicativo
-(es. recupero slot, creazione prenotazioni, aggiornamento credito),
+Ogni repository espone metodi specifici del dominio applicativo
+(es. recupero slot per data/ora, prenotazioni pendenti, aggiornamento credito),
 nascondendo i dettagli dell’ORM ai livelli superiori.
 
 Questo approccio:
-- riduce il coupling con Sequelize;
+
+- riduce il coupling tra business logic e persistenza;
+- evita query Sequelize sparse nei controller;
 - rende i service più semplici da testare;
-- centralizza l’accesso ai dati.
+- centralizza l’accesso e la modifica dei dati.
+
+### Perché è stato scelto
+In questo progetto l’accesso al database non è banale: prenotazioni, slot e credito
+sono fortemente interconnessi e richiedono query strutturate e coerenti.
+Il Repository Pattern consente di mantenere la logica di business pulita,
+lavorando con metodi di dominio invece che con query ORM direttamente nei controller.
 
 Esempi nel progetto:
 - `UserRepository`
@@ -552,51 +607,53 @@ Esempi nel progetto:
 
 ### Service Layer
 
-Il **Service Layer** incapsula la logica di business e le **regole di dominio**
-dell’applicazione.
+Il Service Layer incapsula la logica di business e le regole di dominio dell’applicazione, coordinando più repository e gestendo i casi d’uso principali.
 
-In particolare, i service:
-- validano input e condizioni di dominio;
-- coordinano più repository;
-- gestiscono le **transaction** Sequelize;
-- sollevano errori di dominio significativi.
+I service:
+- validano le condizioni di dominio (vincolo 24h, credito sufficiente, quantità minima);
+- coordinano operazioni su più entità (User, Reservation, ProducerSlot);
+- gestiscono transaction Sequelize;
+- sollevano errori di dominio significativi e controllati.
+
+I controller si limitano a:
+- leggere la richiesta HTTP;
+- delegare al service appropriato;
+- restituire la risposta.
+
+### Perché è stato scelto
+Il dominio dell’applicazione non è un semplice CRUD: operazioni come la prenotazione,
+la cancellazione o la resolve coinvolgono più entità e devono essere eseguite in modo
+atomico e consistente.
+Il Service Layer è necessario per centralizzare queste regole ed evitare logica complessa nei controller, garantendo coerenza anche in presenza di richieste concorrenti.
 
 Esempi nel progetto:
-- `ProducerSlotService` (gestione capacity / price)
-- `ReservationService` (creazione prenotazioni consumer)
-
-Questo consente ai controller di rimanere sottili (*thin controllers*),
-limitandosi a:
-- leggere la richiesta HTTP;
-- delegare al service;
-- restituire la risposta.
+- `ProducerSlotService` (gestione capacità e prezzo)
+- `ReservationService` (creazione, modifica e cancellazione prenotazioni)
+- `SettlementService` (allocazione, taglio proporzionale e rimborsi)
 
 ### Middleware Pattern
 
-Il **Middleware Pattern** è utilizzato per gestire funzionalità trasversali
-alle API, in particolare:
-
+Il Middleware Pattern è utilizzato per gestire funzionalità trasversali all’intera applicazione, in particolare:
 - autenticazione JWT;
-- autorizzazione basata sul ruolo;
+- autorizzazione basata sul ruolo (admin, producer, consumer);
 - gestione centralizzata degli errori.
 
-I middleware intercettano le richieste dirette agli endpoint protetti,
-verificano la presenza e la validità del token, e arricchiscono la request
+I middleware intercettano le richieste dirette alle rotte protette, verificano la presenza e la validità del token e arricchiscono la request
 con le informazioni dell’utente autenticato.
 
-Questo evita duplicazioni di codice e mantiene separata la logica di sicurezza
-dalla logica applicativa.
+### Perché è stato scelto
+Questo approccio consente di applicare in modo uniforme le politiche di sicurezza e di gestione degli errori su tutte le API, evitando duplicazioni di codice
+e mantenendo separata la logica di sicurezza dalla logica applicativa.
+In questo modo i controller restano focalizzati esclusivamente sul dominio.
 
 ### Strategy Pattern
 
-Lo Strategy Pattern è utilizzato per gestire in modo flessibile le politiche
-di allocazione dell’energia durante la fase di resolve delle prenotazioni
+Lo Strategy Pattern è utilizzato per gestire in modo flessibile le politiche di allocazione dell’energia durante la fase di resolve delle prenotazioni
 lato producer.
 
-In base al rapporto tra domanda totale e capacità disponibile dello slot,
-il sistema seleziona dinamicamente la strategia di allocazione più appropriata.
+In base al rapporto tra domanda totale e capacità disponibile di uno slot, il sistema seleziona dinamicamente la strategia di allocazione più appropriata.
 
-In particolare sono implementate:
+Sono implementate le seguenti strategie:
 
 - NoCutStrategy
   - applicata quando la somma delle richieste è minore o uguale alla capacità;
@@ -605,7 +662,12 @@ In particolare sono implementate:
 - ProportionalCutStrategy
   - applicata in caso di oversubscription (richieste > capacità);
   - l’energia viene allocata tramite taglio lineare proporzionale:
-    - allocatedKwh = requestedKwh * (capacity / sumRequested).
+    - allocatedKwh = requestedKwh * (capacityKwh / sumRequestedKwh).
+
+### Perché è stato scelto 
+La logica di allocazione può variare in base alle condizioni di domanda e offerta.
+Lo Strategy Pattern permette di incapsulare gli algoritmi di allocazione, renderli intercambiabili e mantenere il codice del servizio di resolve
+semplice e facilmente estendibile.
 
 ---
 
