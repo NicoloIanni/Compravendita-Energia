@@ -106,7 +106,14 @@ export class AdminService {
 }
 
 async getAllConsumers() {
-  return this.userRepo.findByRole("consumer");
+  const consumers= await this.userRepo.findByRole("consumer");
+
+  return consumers.map(c => ({
+  id: c.id,
+  email: c.email,
+  role: c.role,
+  credit: Number(c.credit.toFixed(2))
+}));
 }
 
 }

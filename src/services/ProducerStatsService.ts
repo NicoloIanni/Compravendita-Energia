@@ -42,31 +42,53 @@ export class ProducerStatsService {
    * ========================= */
 async getStats(input: {
   producerProfileId: number;
-  from?: Date;
-  to?: Date;
+  fromDate?: Date;
+  toDate?: Date;
+  fromHour?: number;
+  toHour?: number;
 }) {
-  const reservations = await this.reservationRepo.findAllocatedByProducer(input);
-  const slots = await this.producerSlotRepo.findByProducerAndRange(input);
+  const {
+    producerProfileId,
+    fromDate,
+    toDate,
+    fromHour,
+    toHour,
+  } = input;
 
-  /**
-   * capacity[date][hour] = capacityKwh
-   */
+  // formatta le date per il filtro
+  const fromDateStr = fromDate
+    ? fromDate.toISOString().slice(0, 10)
+    : undefined;
+  const toDateStr = toDate
+    ? toDate.toISOString().slice(0, 10)
+    : undefined;
+
+  const reservations =
+    await this.reservationRepo.findAllocatedByProducer({
+      producerProfileId,
+      from: fromDate,
+      to: toDate,
+    });
+
+  const slots =
+    await this.producerSlotRepo.findByProducerAndRangeForStats({
+      producerProfileId,
+      from: fromDate,
+      to: toDate,
+    });
+
   const capacityMap = new Map<string, number>();
-
   for (const s of slots) {
-    const key = `${s.date}-${s.hour}`;
-    capacityMap.set(key, s.capacityKwh);
+    capacityMap.set(`${s.date}-${s.hour}`, s.capacityKwh);
   }
 
-  /**
-   * soldPercent[date][hour] = number[]
-   */
-  const soldPercentMap = new Map<
-    string,
-    Map<number, number[]>
-  >();
+  const soldPercentMap = new Map<string, Map<number, number[]>>();
 
   for (const r of reservations) {
+    // filtra per ora se indicato
+    if (fromHour !== undefined && r.hour < fromHour) continue;
+    if (toHour !== undefined && r.hour > toHour) continue;
+
     const key = `${r.date}-${r.hour}`;
     const capacity = capacityMap.get(key) ?? 0;
     if (capacity === 0) continue;
@@ -78,7 +100,6 @@ async getStats(input: {
     }
 
     const hourMap = soldPercentMap.get(r.date)!;
-
     if (!hourMap.has(r.hour)) {
       hourMap.set(r.hour, []);
     }
@@ -86,9 +107,6 @@ async getStats(input: {
     hourMap.get(r.hour)!.push(percent);
   }
 
-  /**
-   * OUTPUT FINALE
-   */
   const result: Array<{
     date: string;
     hours: Array<{
@@ -124,6 +142,9 @@ async getStats(input: {
 
   return result.sort((a, b) => a.date.localeCompare(b.date));
 }
+
+
+
 
 
 

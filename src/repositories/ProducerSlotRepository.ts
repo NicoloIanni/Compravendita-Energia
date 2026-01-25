@@ -98,6 +98,7 @@ export class ProducerSlotRepository {
     return this.model.findAll({
       where: {
         producerProfileId: input.producerProfileId,
+        deleted: false,
         ...(from || to
           ? {
             date: {
@@ -138,4 +139,31 @@ export class ProducerSlotRepository {
       }
     );
   }
+  async findByProducerAndRangeForStats(input: {
+  producerProfileId: number;
+  from?: Date;
+  to?: Date;
+}): Promise<ProducerSlot[]> {
+  const from = normalize(input.from);
+  const to = normalize(input.to);
+
+  return this.model.findAll({
+    where: {
+      producerProfileId: input.producerProfileId,
+      ...(from || to
+        ? {
+            date: {
+              ...(from && { [Op.gte]: from }),
+              ...(to && { [Op.lte]: to }),
+            },
+          }
+        : {}),
+    },
+    order: [
+      ["date", "ASC"],
+      ["hour", "ASC"],
+    ],
+  });
+}
+
 }

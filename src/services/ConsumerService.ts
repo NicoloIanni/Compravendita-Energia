@@ -1,5 +1,6 @@
 import { ReservationRepository } from "../repositories/ReservationRepository";
 import Reservation from "../models/Reservation";
+import { Op } from "sequelize";
 
 
 
@@ -9,27 +10,52 @@ export class ConsumerQueryService {
   /* =========================
    * PURCHASES
    * ========================= */
-  async getPurchases(input: {
+ async getPurchases(input: {
     consumerId: number;
     producerProfileId?: number;
     energyType?: string;
     from?: Date;
     to?: Date;
   }) {
-    const reservations: Reservation[] =
-      await this.reservationRepo.findAllocatedByConsumer(input);
+    const { consumerId, producerProfileId, energyType, from, to } = input;
 
-    return reservations.map((r) => ({
-      date: r.date,                 // YYYY-MM-DD
-      hour: r.hour,
-      requestedKwh:r.requestedKwh,                // 0–23
-      allocatedKwh: r.allocatedKwh,
-      totalCost: r.totalCostCharged,
-      status: r.status,
-      producerProfileId: (r as any).producerProfile.id,
-      energyType: (r as any).producerProfile.energyType,
-    }));
+    // Chiami il repository con lo stesso oggetto di filtri:
+    // findAllocatedByConsumer gestisce già:
+    // - consumerId
+    // - producerProfileId
+    // - energyType
+    // - from / to (come date, poi puoi ulteriore elaborare)
+    const reservations: any[] =
+      await this.reservationRepo.findAllocatedByConsumer({
+        consumerId,
+        producerProfileId,
+        energyType,
+        from,
+        to,
+      });
+
+    // Mappa le prenotazioni in output formattato
+    return reservations.map((r) => {
+      // calcolo CO2 totale di questo acquisto
+      const co2_g =
+        Number(r.allocatedKwh.toFixed(3)) *
+        Number(r.producerProfile.co2_g_per_kwh.toFixed(3));
+
+      return {
+        date: r.date, // YYYY-MM-DD
+        hour: r.hour,
+        requestedKwh: Number(r.requestedKwh.toFixed(3)),
+        allocatedKwh: Number(r.allocatedKwh.toFixed(3)),
+        totalCost: Number(r.totalCostCharged.toFixed(2)),
+        status: r.status,
+        producerProfileId: r.producerProfile.id,
+        energyType: r.producerProfile.energyType,
+        co2_g_per_kwh: Number(r.producerProfile.co2_g_per_kwh.toFixed(2)),
+        co2_g: Number(co2_g.toFixed(2)),
+      };
+    });
   }
+
 
   /* =========================
    * CARBON FOOTPRINT
@@ -43,19 +69,19 @@ export class ConsumerQueryService {
 
     const items = reservations.map((r) => {
       const producer = (r as any).producerProfile;
-      const co2_g = r.allocatedKwh * producer.co2_g_per_kwh;
+      const co2_g =Number((r.allocatedKwh * producer.co2_g_per_kwh).toFixed(2));
 
       return {
         date: r.date,
         hour: r.hour,
-        allocatedKwh: r.allocatedKwh,
+        allocatedKwh: Number(r.allocatedKwh.toFixed(2)),
         energyType: producer.energyType,
-        co2_g_per_kwh: producer.co2_g_per_kwh,
+        co2_g_per_kwh: Number(producer.co2_g_per_kwh.toFixed(2)),
         co2_g,
       };
     });
 
-    const totalCo2_g = items.reduce((sum, i) => sum + i.co2_g, 0);
+    const totalCo2_g = Number(items.reduce((sum, i) => sum + i.co2_g, 0).toFixed(2));
 
     return {
       from: input.from,

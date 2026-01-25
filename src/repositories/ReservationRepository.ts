@@ -164,7 +164,7 @@ export class ReservationRepository {
     return Reservation.findAll({
       where: {
         status: "ALLOCATED",
-        producerProfileId: filters.producerProfileId, // 🔥 QUI ERA IL BUG
+        producerProfileId: filters.producerProfileId,
         ...(fromDate || toDate
           ? {
             date: {

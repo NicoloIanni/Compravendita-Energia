@@ -179,7 +179,7 @@
       ]
     },
     {
-      "name": "Producer - Upsert Slots (capacity + price)",
+      "name": "Producer - Create Slots",
       "request": {
         "method": "PATCH",
         "header": [
@@ -234,7 +234,16 @@
       "request": {
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{producer_token}}" }],
-        "url": "{{baseUrl}}/producers/me/requests?date={{bookingDate}}"
+    "url": {
+      "raw": "{{base_url}}/producers/me/requests?date={{date}}&fromHour={{fromHour}}&toHour={{toHour}}",
+      "host": ["{{base_url}}"],
+      "path": ["producers", "me", "requests"],
+      "query": [
+        { "key": "date", "value": "{{date}}" },
+        { "key": "fromHour", "value": "{{fromHour}}" },
+        { "key": "toHour", "value": "{{toHour}}" }
+      ]
+    }
       },
       "event": [
         {
@@ -290,7 +299,17 @@
       "request": {
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{producer_token}}" }],
-        "url": "{{baseUrl}}/producers/me/stats"
+        "url": {
+           "raw": "{{base_url}}/producers/me/stats?fromDate={{statsFromDate}}&toDate={{statsToDate}}&fromHour={{statsFromHour}}&toHour={{statsToHour}}",
+           "host": ["{{base_url}}"],
+           "path": ["producers", "me", "stats"],
+           "query": [
+            { "key": "fromDate", "value": "{{statsFromDate}}", "disabled": false },
+            { "key": "toDate", "value": "{{statsToDate}}","disabled": false  },
+            { "key": "fromHour", "value": "{{statsFromHour}}","disabled": false  },
+            { "key": "toHour", "value": "{{statsToHour}}","disabled": false  }
+      ]
+    }
       },
       "event": [
         {
@@ -315,12 +334,14 @@
       }
     ],
     "url": {
-      "raw": "{{baseUrl}}/producers/me/stats/chart?from={{fromDate}}&to={{toDate}}",
-      "host": ["{{baseUrl}}"],
+      "raw": "{{base_url}}/producers/me/stats/chart?fromDate={{statsFromDate}}&toDate={{statsToDate}}&fromHour={{statsFromHour}}&toHour={{statsToHour}}",
+      "host": ["{{base_url}}"],
       "path": ["producers", "me", "stats", "chart"],
       "query": [
-        { "key": "from", "value": "{{fromDate}}", "disabled": true },
-        { "key": "to", "value": "{{toDate}}", "disabled": true }
+        { "key": "fromDate", "value": "{{statsFromDate}}","disabled":false },
+        { "key": "toDate", "value": "{{statsToDate}}" ,"disabled":false},
+        { "key": "fromHour", "value": "{{statsFromHour}}", "disabled": false },
+        { "key": "toHour", "value": "{{statsToHour}}", "disabled": false }
       ]
     }
   },
@@ -432,7 +453,7 @@
       "host": [
         "{{base_url}}"
       ],
-      "path": [
+      "path": ["consumers",
         "me",
         "producers"
       ]
@@ -445,7 +466,17 @@
       "request": {
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{consumer_token}}" }],
-        "url": "{{baseUrl}}/consumers/me/purchases"
+        "url":{
+          "raw": "{{base_url}}/consumers/me/purchases?producerId={{producerId}}&energyType={{energyType}}&from={{fromDatetime}}&to={{toDatetime}}",
+          "host": ["{{base_url}}"],
+          "path": ["consumers", "me", "purchases"],
+          "query": [
+        { "key": "producerId", "value": "{{producerId}}","disabled": false},
+        { "key": "energyType", "value": "{{energyType}}","disabled": false },
+        { "key": "from", "value": "{{fromDatetime}}","disabled": false },
+        { "key": "to", "value": "{{toDatetime}}","disabled": false }
+      ]
+        }
       },
       "event": [
         {
