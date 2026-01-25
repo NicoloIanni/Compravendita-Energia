@@ -41,12 +41,13 @@ export async function getProducerRequestsOverview(params: {
   for (const slot of slots) {
     const capacity = Number(slot.capacityKwh);
 
-    // somma delle richieste totali
+    // somma delle richieste totali (PENDING + ALLOCATED)
     const sumRequested = await Reservation.sum("requestedKwh", {
       where: {
         producerProfileId,
         date,
         hour: slot.hour,
+        status: { [Op.in]: ["PENDING", "ALLOCATED"] },
       },
     });
     const sumRequestedKwh = Number(sumRequested || 0);
@@ -57,15 +58,15 @@ export async function getProducerRequestsOverview(params: {
         producerProfileId,
         date,
         hour: slot.hour,
-        status: "ALLOCATED", // consideriamo solo gli ALLOCATED
+        status: "ALLOCATED",
       },
     });
     const sumAllocatedKwh = Number(sumAllocated || 0);
 
-    // calcolo percentuale basato su allocati
+    // nuova percentuale basata su tutte le richieste
     const occupancyPercent =
       capacity > 0
-        ? Number(((sumAllocatedKwh / capacity) * 100).toFixed(2))
+        ? Number(((sumRequestedKwh / capacity) * 100).toFixed(2))
         : 0;
 
     result.push({
