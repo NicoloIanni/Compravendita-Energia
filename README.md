@@ -167,22 +167,24 @@ Di seguito un riepilogo delle rotte principali implementate nel progetto:
 | Metodo | Percorso | Descrizione |
 |--------|----------|-------------|
 | `GET`   | `/health` | Healthcheck dell’API |
-| `POST`  | `/auth/login` | Login utente (admin/producer/consumer) e generazione JWT |
+| `POST`  | `/auth/login` | Login utente (admin / producer / consumer) e generazione JWT |
 | `GET`   | `/protected/ping` | Endpoint protetto di verifica JWT |
 | `POST`  | `/admin/producers` | Creazione di un producer (utente + profilo producer) |
 | `POST`  | `/admin/consumers` | Creazione di un consumer (utente + credito iniziale) |
 | `GET`   | `/admin/producers` | Elenco producer registrati |
 | `GET`   | `/admin/consumers` | Elenco consumer registrati |
-| `PATCH` | `/producers/me/slots` | Creazione o aggiornamento batch degli slot del producer (capacity e/o price per data e ora) |
-| `GET`   | `/producers/me/requests` | Overview richieste per fascia oraria e % di occupazione |
+| `PATCH` | `/producers/me/slots` | Creazione degli slot del producer per data e ora |
+| `PATCH` | `/producers/me/updateslot` | Aggiornamento di slot esistenti (capacity e/o price) |
+| `GET`   | `/producers/me/requests` | Overview richieste per fascia oraria e percentuale di occupazione |
 | `POST`  | `/producers/me/requests/resolve` | Resolve delle richieste: allocazione energia, taglio proporzionale e rimborsi |
 | `GET`   | `/producers/me/earnings` | Guadagni del producer su intervallo temporale |
-| `GET`   | `/producers/me/stats` | Statistiche di vendita per fascia oraria (min / max / avg / std) in JSON |
-| `GET`   | `/producers/me/stats/chart` | Statistiche di vendita per fascia oraria in grafico PNG (Chart.js) |
+| `GET`   | `/producers/me/stats` | Statistiche di vendita per fascia oraria (min / max / avg / std) in formato JSON |
+| `GET`   | `/producers/me/stats/chart` | Statistiche di vendita per fascia oraria in formato grafico PNG (Chart.js) |
 | `POST`  | `/consumers/me/reservations` | Creazione prenotazione (stato iniziale `PENDING`) |
-| `PATCH` | `/consumers/me/updatereservations/reservationId` | Modifica o cancellazione prenotazione (vincolo 24h, con o senza rimborso) |
-| `GET`   | `/consumers/me/purchases` | Elenco acquisti filtrabile (producer / energyType / intervallo) |
-| `GET`   | `/consumers/me/carbon` | Carbon footprint (dettaglio per slot + totale su intervallo) |
+| `PATCH` | `/consumers/me/updatereservations/:id` | Modifica o cancellazione prenotazione (vincolo 24h, con o senza rimborso) |
+| `GET`   | `/consumers/me/purchases` | Elenco acquisti filtrabile (producer / energyType / intervallo temporale) |
+| `GET`   | `/consumers/me/carbon` | Calcolo impronta di carbonio (dettaglio per slot + totale) |
+| `GET`   | `/consumers/me/producers` | Elenco producer disponibili con relativi slot acquistabili |
 
 
 ### Comportamento dei controller
@@ -194,20 +196,31 @@ I controller relativi alle rotte sopra seguono queste regole:
   - Se manca o è invalido → `401 Unauthorized`
 
 - **Autorizzazione per ruolo**
-  - Solo utenti con `role: "producer"` possono aggiornare slot capacity/price
-  - Solo utenti con `role: "consumer"` possono creare prenotazioni
+  - Solo utenti con `role: "admin"` possono creare/listare producer e consumer
+  - Solo utenti con `role: "producer"` possono gestire slot/requests/stats/earnings
+  - Solo utenti con `role: "consumer"` possono creare e modificare prenotazioni e consultare acquisti/carbon
   - Caso negativo → `403 Forbidden`
 
+- **Gestione slot producer: due operazioni distinte**
+  - `PATCH /producers/me/slots`
+    - crea o fa upsert batch degli slot del producer (capacity e/o price per data e ora)
+    - se lo slot non esiste viene creato, se esiste viene aggiornato
+  - `PATCH /producers/me/updateslot`
+    - aggiorna batch di slot **già esistenti**
+    - se lo slot non esiste → errore (non crea slot nuovi)
+
 - **Validazione dei dati (slot producer)**
-  - Per ogni slot passato nel body vengono verificati:
+  - Per ogni elemento passato nel body vengono verificati:
     - `date` presente e formato valido (`YYYY-MM-DD`)
     - `hour` tra 0 e 23
-    - `capacityKwh` >= 0 (per capacity)
-    - `pricePerKwh` >= 0 (per price)
+    - almeno uno tra `capacityKwh` e `pricePerKwh` deve essere presente
+    - se presenti:
+      - `capacityKwh` >= 0
+      - `pricePerKwh` >= 0
   - In caso di input non valido → `400 Bad Request` con messaggio esplicativo
 
 - **Transazioni atomiche (slot producer)**
-  - Tutti gli aggiornamenti vengono eseguiti in una transazione
+  - Gli aggiornamenti batch vengono eseguiti in una transaction
   - Se anche un singolo elemento è invalido, **nessuna modifica viene applicata**
 
 ---
@@ -273,7 +286,7 @@ curl -i http://localhost:3000/health
 Risposta attesa: 200 OK.
 
 #### Troubleshooting rapido
-- Errori di connessione al database → verificare le variabili d’ambiente (DB_HOST, DB_NAME, DB_USER, DB_PASS).
+- Errori di connessione al database → verificare le variabili d’ambiente (DB_HOST, DB_NAME, DB_USER, DB_PASSWORD).
 - Database in stato incoerente → ripartire da zero rimuovendo anche i volumi:
 ```bash
 docker compose down -v
@@ -282,7 +295,7 @@ docker compose up --build
 
 ---
 
-## Test MAGARI AGGIUNGERE ALTRI TEST PIU' COMPLESSI
+## Test 
 I test automatici verificano che l’API risponda correttamente sugli endpoint principali e che le **regole di dominio** siano applicate in modo consistente. Sono scritti con **Jest** e **Supertest** e vengono eseguiti contro l’API Express, con database reale (PostgreSQL) avviato tramite Docker.
 
 Esecuzione:
@@ -334,7 +347,7 @@ Expected Response: HTTP/1.1 201 Created
 #### 2. 🔴 Test – Creazione prenotazione non valida: quantità inferiore al minimo
 Questo test verifica che il sistema rifiuti correttamente una prenotazione con una quantità di energia inferiore al minimo consentito (0.1 kWh).
 
-**Endpoint**: PATCH /consumers/me/reservations
+**Endpoint**: POST /consumers/me/reservations
 
 **Headers**: Authorization: Bearer `<consumer_token>`, Content-Type: application/json
 
@@ -426,7 +439,7 @@ Expected Response: HTTP/1.1 200 OK
   {
     "date": 2026-01-22,
     "resolvedHours": 1,
-    "oversubscribedHours": 0
+    "oversubscribedHours": 1 // numero di fasce orarie in cui è stata rilevata oversubscription
   }
 ]
 ```
@@ -448,8 +461,9 @@ e delle regole di dominio.
 
 Nel progetto viene usato per:
 - testare il flusso di autenticazione JWT
-- verificare le rotte producer (capacity / price)
-- testare la creazione di prenotazioni lato consumer
+- verificare le rotte admin (creazione/lista producer e consumer)
+- verificare le rotte producer (slot, overview richieste, resolve, stats/earnings)
+- testare la creazione e modifica/cancellazione prenotazioni lato consumer
 - salvare richieste in una **Collection** riutilizzabile
 
 Le richieste sono organizzate in una collection dedicata, con uso di variabili
@@ -487,8 +501,8 @@ npm i -D newman
 - `POST /auth/login` → `200 OK` e ritorna `{ "accessToken": "<JWT>" }` con credenziali valide
 - `POST /auth/login` (wrong password) → `401 Unauthorized`
 - `GET /protected/ping` (con token) → `200 OK`
-- `PATCH /producers/me/slots` (producer + body valido) → `200 OK`
-- `PATCH /producers/me/slots` (validazione fallita) → `400 Bad Request`
+- `PATCH /producers/me/slots` (producer + body valido) → `200 OK` (creazione/upsert batch slot)
+- `POST /producers/me/requests/resolve?date=...` → `200 OK` (allocazione + eventuale taglio + rimborsi)
 - `POST /consumers/me/reservations` (consumer + richiesta valida) → `201 Created` (prenotazione in stato `PENDING`)
 
 > Nota: la collection usa variabili d’ambiente Postman (`admin_email`, `admin_password`) e salva automaticamente il token in `jwt_token` (e per compatibilità anche in `jwt`).  
