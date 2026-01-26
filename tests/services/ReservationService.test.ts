@@ -1,59 +1,82 @@
 /**
  * Unit test ReservationService
- * - mock sequelize.transaction
- * - mock repositories (including sumAllocatedForSlot)
- * - mock Reservation.sum static
+ *
+ * Obiettivo:
+ * - testare solo la logica di business del ReservationService
+ * - nessun accesso a DB reale
+ * - tutto ciò che è esterno (DB, repository) viene mockato
  */
 
-// Mock del modulo db:
-// intercettiamo sequelize.transaction per evitare DB reale
+// ======================================================
+// MOCK DEL MODULO DB
+// ======================================================
+// Intercettiamo sequelize.transaction per evitare:
+// - connessione reale al DB
+// - gestione reale delle transazioni
+// Il service riceverà comunque un "tx" finto
 jest.mock("../../src/db", () => ({
   sequelize: {
     transaction: async (fn: any) => {
-      // transazione finta (tx) con lock simulato
+      // transazione finta con struttura minima
       const tx = { LOCK: { UPDATE: "UPDATE" } };
       return fn(tx);
     },
   },
 }));
 
-import * as ReservationModel from "../../src/models/Reservation";
 import { ReservationService } from "../../src/services/ReservationService";
 
 describe("ReservationService", () => {
+  // Repository mockati (dipendenze del service)
   let userRepository: any;
   let producerSlotRepository: any;
   let reservationRepository: any;
+
+  // Service reale (quello che stiamo testando)
   let service: ReservationService;
 
-  // Prima di ogni test:
-  // inizializzazione repository mockati
+  // ======================================================
+  // SETUP PRIMA DI OGNI TEST
+  // ======================================================
   beforeEach(() => {
+    /**
+     * Mock UserRepository
+     * Serve per:
+     * - recuperare consumer
+     * - aggiornare il credito
+     */
     userRepository = {
       findById: jest.fn(),
+      findByIdForUpdate: jest.fn(),
       save: jest.fn(),
     };
 
+    /**
+     * Mock ProducerSlotRepository
+     * Serve per:
+     * - recuperare slot (prezzo, capacità, deleted)
+     */
     producerSlotRepository = {
       findByProducerDateHour: jest.fn(),
     };
 
+    /**
+     * Mock ReservationRepository
+     * Serve per:
+     * - creare reservation
+     * - cercare conflitti
+     * - recuperare reservation con lock
+     */
     reservationRepository = {
       create: jest.fn(),
       findByIdForUpdate: jest.fn(),
       save: jest.fn(),
       findOne: jest.fn(),
-      sum: jest.fn(),
       findPendingByConsumerSlot: jest.fn(),
       sumAllocatedForSlot: jest.fn(),
     };
 
-    // Mock static Reservation.sum → evita query reali
-    jest
-      .spyOn(ReservationModel.default, "sum")
-      .mockResolvedValue(0);
-
-    // Istanza reale del service con repository fake
+    // Istanza reale del service con repository mockati
     service = new ReservationService(
       userRepository,
       producerSlotRepository,
@@ -72,24 +95,28 @@ describe("ReservationService", () => {
   // ======================================================
 
   it("createReservation: scala credito e crea PENDING", async () => {
-    // Simula il tempo (fondamentale per la regola delle 24h)
+    /**
+     * Simuliamo il tempo:
+     * necessario per testare correttamente la regola delle 24h
+     */
     jest.useFakeTimers();
     jest.setSystemTime(new Date("2026-01-20T10:00:00Z"));
 
-    // Consumer finto
+    // Consumer finto con credito iniziale
     const consumer = { id: 1, credit: 100 };
 
-    // Slot finto
+    // Slot finto con prezzo e capacità
     const slot = { pricePerKwh: 10, capacityKwh: 8 };
 
-    // Mock repository
+    // Mock dei repository
     userRepository.findById.mockResolvedValue(consumer);
     producerSlotRepository.findByProducerDateHour.mockResolvedValue(slot);
 
-    reservationRepository.sumAllocatedForSlot.mockResolvedValue(0);
-    reservationRepository.findPendingByConsumerSlot.mockResolvedValue(null);
+    // Nessun conflitto
     reservationRepository.findOne.mockResolvedValue(null);
+    reservationRepository.findPendingByConsumerSlot.mockResolvedValue(null);
 
+    // Creazione reservation simulata
     reservationRepository.create.mockResolvedValue({
       id: 123,
       status: "PENDING",
@@ -104,19 +131,19 @@ describe("ReservationService", () => {
       requestedKwh: 2,
     });
 
-    // Verifiche
+    // Verifica stato
     expect(result.status).toBe("PENDING");
 
-    // Credito scalato: 2 kWh * 10 = 20
+    // Verifica credito scalato: 2 kWh * 10 = 20
     expect(consumer.credit).toBe(80);
 
-    // Verifica persistenza consumer
+    // Verifica che il consumer sia stato salvato
     expect(userRepository.save).toHaveBeenCalledWith(
       consumer,
       expect.anything()
     );
 
-    // Verifica creazione reservation
+    // Verifica che la reservation sia stata creata
     expect(reservationRepository.create).toHaveBeenCalled();
   });
 
@@ -130,16 +157,14 @@ describe("ReservationService", () => {
       capacityKwh: 8,
     });
 
-    reservationRepository.sumAllocatedForSlot.mockResolvedValue(0);
-    reservationRepository.findPendingByConsumerSlot.mockResolvedValue(null);
+    /**
+     * Simulazione conflitto:
+     * esiste già una reservation dello stesso consumer
+     * nella stessa data/ora ma con produttore diverso
+     */
+    reservationRepository.findOne.mockResolvedValue({ id: 999 });
 
-    // Prima findOne → nessuna reservation stesso producer
-    // Seconda findOne → reservation su altro producer stessa ora
-    reservationRepository.findOne
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: 987 });
-
-    // Deve lanciare errore di dominio
+    // Deve lanciare DomainError
     await expect(
       service.createReservation({
         consumerId: 1,
@@ -154,7 +179,10 @@ describe("ReservationService", () => {
   });
 
   it("createReservation: rifiuta requestedKwh < 0.1", async () => {
-    // Validazione puramente di dominio (prima del DB)
+    /**
+     * Validazione puramente di dominio:
+     * non serve alcun mock
+     */
     await expect(
       service.createReservation({
         consumerId: 1,
@@ -172,7 +200,9 @@ describe("ReservationService", () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date("2026-01-20T10:00:00Z"));
 
-    // Slot alle 9 del giorno dopo → meno di 24h
+    /**
+     * Slot alle 09 del giorno dopo → meno di 24h
+     */
     await expect(
       service.createReservation({
         consumerId: 1,
@@ -206,13 +236,16 @@ describe("ReservationService", () => {
       status: "PENDING",
     };
 
-    userRepository.findById.mockResolvedValue({ id: 1, credit: 20 });
+    // Mock repository
+    reservationRepository.findByIdForUpdate.mockResolvedValue(reservation);
     producerSlotRepository.findByProducerDateHour.mockResolvedValue({
       pricePerKwh: 10,
     });
+    userRepository.findByIdForUpdate.mockResolvedValue({
+      id: 1,
+      credit: 20,
+    });
 
-    // Lock pessimista simulato
-    reservationRepository.findByIdForUpdate.mockResolvedValue(reservation);
     reservationRepository.save.mockImplementation(async (r: any) => r);
 
     // requestedKwh = 0 → cancellazione
@@ -222,6 +255,7 @@ describe("ReservationService", () => {
       requestedKwh: 0,
     });
 
+    // Verifica stato finale
     expect(res.status).toBe("CANCELLED");
   });
 });
