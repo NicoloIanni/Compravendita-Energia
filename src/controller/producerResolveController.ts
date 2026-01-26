@@ -4,33 +4,37 @@ import { settlementService } from "../container";
 /**
  * POST /producers/me/requests/resolve?date=YYYY-MM-DD
  *
- * Risolve le richieste PENDING per il produttore autenticato.
- * La transaction è gestita internamente dal SettlementService.
+ * “Resolve” = applica l’allocazione:
+ * - se sumRequested <= capacity => NoCut
+ * - se sumRequested > capacity => ProportionalCut
+ *
+ * Il SettlementService deve gestire:
+ * - update allocatedKwh
+ * - eventuali rimborsi (difference) ai consumer
+ * - transaction
  */
 export const resolveProducerRequests = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
+  req: Request,
+  res: Response,
+  next: NextFunction
 ) => {
-    const producerProfileId = req.user?.profileId;
-    const { date } = req.query;
+  const producerProfileId = req.user?.profileId;
+  const { date } = req.query;
 
-    if (!producerProfileId) {
-        return res.status(401).json({ message: "Unauthorized" });
-    }
+  // auth/role check già fatto in middleware, qui controlliamo solo profileId
+  if (!producerProfileId) {
+    return res.status(403).json({ error: "Producer profile missing" });
+  }
 
-    if (!date || typeof date !== "string") {
-        return res.status(400).json({ message: "Missing or invalid date" });
-    }
+  // date è obbligatoria per risolvere un giorno specifico
+  if (!date || typeof date !== "string") {
+    return res.status(400).json({ error: "Missing or invalid date" });
+  }
 
-    try {
-        const result = await settlementService.resolveDay(
-            producerProfileId,
-            date
-        );
-
-        return res.status(200).json(result);
-    } catch (error) {
-        next(error);
-    }
+  try {
+    const result = await settlementService.resolveDay(producerProfileId, date);
+    return res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
 };

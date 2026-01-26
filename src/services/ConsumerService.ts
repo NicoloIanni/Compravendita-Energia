@@ -2,15 +2,15 @@ import { ReservationRepository } from "../repositories/ReservationRepository";
 import Reservation from "../models/Reservation";
 import { Op } from "sequelize";
 
-
-
+// Service READ-ONLY per consumer
+// Separato dal ReservationService per non mescolare write e query
 export class ConsumerQueryService {
   constructor(private reservationRepo: ReservationRepository) {}
 
   /* =========================
-   * PURCHASES
+   * PURCHASES 
    * ========================= */
- async getPurchases(input: {
+  async getPurchases(input: {
     consumerId: number;
     producerProfileId?: number;
     energyType?: string;
@@ -19,12 +19,7 @@ export class ConsumerQueryService {
   }) {
     const { consumerId, producerProfileId, energyType, from, to } = input;
 
-    // Chiami il repository con lo stesso oggetto di filtri:
-    // findAllocatedByConsumer gestisce già:
-    // - consumerId
-    // - producerProfileId
-    // - energyType
-    // - from / to (come date, poi puoi ulteriore elaborare)
+    // Si delega completamente il filtering al repository
     const reservations: any[] =
       await this.reservationRepo.findAllocatedByConsumer({
         consumerId,
@@ -34,15 +29,14 @@ export class ConsumerQueryService {
         to,
       });
 
-    // Mappa le prenotazioni in output formattato
+    // Mapping DTO + calcolo CO₂ per acquisto
     return reservations.map((r) => {
-      // calcolo CO2 totale di questo acquisto
       const co2_g =
         Number(r.allocatedKwh.toFixed(3)) *
         Number(r.producerProfile.co2_g_per_kwh.toFixed(3));
 
       return {
-        date: r.date, // YYYY-MM-DD
+        date: r.date,
         hour: r.hour,
         requestedKwh: Number(r.requestedKwh.toFixed(3)),
         allocatedKwh: Number(r.allocatedKwh.toFixed(3)),
@@ -56,20 +50,21 @@ export class ConsumerQueryService {
     });
   }
 
-
   /* =========================
-   * CARBON FOOTPRINT
+   * CARBON FOOTPRINT 
    * ========================= */
   async getCarbonFootprint(input: {
     consumerId: number;
     from?: Date;
     to?: Date;
   }) {
-    const reservations = await this.reservationRepo.findAllocatedByConsumer(input);
+    const reservations =
+      await this.reservationRepo.findAllocatedByConsumer(input);
 
     const items = reservations.map((r) => {
       const producer = (r as any).producerProfile;
-      const co2_g =Number((r.allocatedKwh * producer.co2_g_per_kwh).toFixed(2));
+      const co2_g =
+        Number((r.allocatedKwh * producer.co2_g_per_kwh).toFixed(2));
 
       return {
         date: r.date,
@@ -81,7 +76,10 @@ export class ConsumerQueryService {
       };
     });
 
-    const totalCo2_g = Number(items.reduce((sum, i) => sum + i.co2_g, 0).toFixed(2));
+    // Somma totale CO₂
+    const totalCo2_g = Number(
+      items.reduce((sum, i) => sum + i.co2_g, 0).toFixed(2)
+    );
 
     return {
       from: input.from,

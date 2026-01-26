@@ -1,28 +1,47 @@
+/**
+ * Producer Slots Controller
+ *
+ * Gestisce la CREAZIONE e l'AGGIORNAMENTO degli slot orari
+ * associati al produttore autenticato.
+ *
+ * NOTA DI PROGETTO:
+ * - Qui facciamo solo validazioni tecniche (tipo, formato).
+ * - Le regole di dominio vere (slot solo domani, concorrenza, ecc.)
+ *   stanno nel Service Layer.
+ */
+
 import { Request, Response, NextFunction } from "express";
 import type { Transaction } from "sequelize";
 import { sequelize } from "../db";
-import { producerSlotService } from "../services/producerSlotServiceInstance";
-
+import { producerSlotService } from "../container";
 
 /**
  * PATCH /producers/me/slots
  *
- * Aggiorna o crea slot di produzione.
- * Ogni slot DEVE avere sia capacityKwh che pricePerKwh.
+ * Upsert batch degli slot:
+ * - se lo slot NON esiste → viene creato
+ * - se lo slot ESISTE → viene aggiornato
+ *
+ * Payload atteso:
+ * {
+ *   "date": "YYYY-MM-DD",
+ *   "slots": [
+ *     { "hour": 10, "capacityKwh": 5, "pricePerKwh": 1.2 },
+ *     { "hour": 11, "capacityKwh": 3, "pricePerKwh": 1.0 }
+ *   ]
+ * }
  */
-export const upsertSlots = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const upsertSlots = async (req: Request, res: Response, next: NextFunction) => {
   const { date, slots } = req.body;
 
+  // Validazione base payload
   if (!date || !Array.isArray(slots)) {
     return res.status(400).json({
       error: "Payload must include date and slots array",
     });
   }
 
+  // Validazione di struttura per ogni slot
   for (const slot of slots) {
     if (
       typeof slot.hour !== "number" ||
@@ -30,12 +49,12 @@ export const upsertSlots = async (
       typeof slot.pricePerKwh !== "number"
     ) {
       return res.status(400).json({
-        error:
-          "Each slot must include hour, capacityKwh and pricePerKwh",
+        error: "Each slot must include hour, capacityKwh and pricePerKwh",
       });
     }
 
-    if (slot.capacityKwh <= 0 || slot.pricePerKwh < 0) {
+
+    if (slot.capacityKwh <= 0 || slot.pricePerKwh <= 0) {
       return res.status(400).json({
         error: "Invalid capacityKwh or pricePerKwh",
       });
@@ -45,21 +64,18 @@ export const upsertSlots = async (
   let t: Transaction | null = null;
 
   try {
+    // ProducerProfileId dal JWT
     const producerProfileId = req.user?.profileId;
     if (!producerProfileId) {
-      return res
-        .status(403)
-        .json({ error: "Producer profile missing" });
+      return res.status(403).json({ error: "Producer profile missing" });
     }
 
+    // Transaction per evitare problemi concorrenza / aggiornamenti parziali
     t = await sequelize.transaction();
 
-    await producerSlotService.upsertSlots(
-      producerProfileId,
-      date,
-      slots,
-      { transaction: t }
-    );
+    await producerSlotService.upsertSlots(producerProfileId, date, slots, {
+      transaction: t,
+    });
 
     await t.commit();
     return res.status(200).json({ success: true });
@@ -69,18 +85,22 @@ export const upsertSlots = async (
   }
 };
 
-// producers.controller.ts
-
 /**
  * PATCH /producers/me/updateslot
  *
- * Aggiorna batch di slot per capacity e/o price.
+ * Aggiornamento batch "libero" degli slot.
+ * Usato per aggiornamenti mirati senza reinviare tutta la struttura.
+ *
+ * Payload:
+ * {
+ *   "updates": [
+ *     { "date": "2026-01-21", "hour": 10, "capacityKwh": 4 },
+ *     { "date": "2026-01-21", "hour": 11, "pricePerKwh": 0.9 }
+ *   ]
+ * }
+ *
  */
-export const updateSlot = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const updateSlot = async (req: Request, res: Response, next: NextFunction) => {
   const producerProfileId = req.user?.profileId;
   const { updates } = req.body;
 
@@ -98,11 +118,6 @@ export const updateSlot = async (
 
   try {
     t = await sequelize.transaction();
-
-    console.log(">>> updateSlot called");
-    console.log("PROFILE ID:", producerProfileId);
-    console.log("BODY updates:", JSON.stringify(updates, null, 2));
-
     const updatedSlots = await producerSlotService.updateSlots(
       producerProfileId,
       updates,
@@ -119,5 +134,3 @@ export const updateSlot = async (
     return next(err);
   }
 };
-
-

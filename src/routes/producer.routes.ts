@@ -12,9 +12,9 @@ import {
 
 const router = Router();
 
-/**
- * Producer Slots
- */
+// =========================
+// Update / upsert slot capacity & price
+// =========================
 router.patch(
   "/me/slots",
   authenticateJWT,
@@ -22,7 +22,9 @@ router.patch(
   upsertSlots
 );
 
-
+// =========================
+// VIEW REQUESTS
+// =========================
 router.get(
   "/me/requests",
   authenticateJWT,
@@ -31,6 +33,7 @@ router.get(
     try {
       const producerProfileId = req.user?.profileId;
 
+      // Il producer deve avere profileId nel JWT
       if (!producerProfileId) {
         return res
           .status(403)
@@ -39,14 +42,16 @@ router.get(
 
       const { date, fromHour, toHour } = req.query;
 
+      // Validazione data obbligatoria
       if (!date || typeof date !== "string") {
         return res
           .status(400)
           .json({ error: "date è obbligatoria (YYYY-MM-DD)" });
       }
 
+      // Recupero overview richieste per slot
       const data = await getProducerRequestsOverview({
-        producerProfileId, // ✅ UNICO ID CORRETTO
+        producerProfileId,
         date,
         fromHour: fromHour !== undefined ? Number(fromHour) : undefined,
         toHour: toHour !== undefined ? Number(toHour) : undefined,
@@ -59,6 +64,9 @@ router.get(
   }
 );
 
+// =========================
+// RESOLVE REQUESTS
+// =========================
 router.post(
   "/me/requests/resolve",
   authenticateJWT,
@@ -66,9 +74,9 @@ router.post(
   resolveProducerRequests
 );
 
-/**
- * Producer Earnings (DAY 8)
- */
+// =========================
+// Producer Earnings
+// =========================
 router.get(
   "/me/earnings",
   authenticateJWT,
@@ -76,9 +84,9 @@ router.get(
   getMyEarnings
 );
 
-/**
- * Producer Stats (DAY 8)
- */
+// =========================
+// Producer Stats 
+// =========================
 router.get(
   "/me/stats",
   authenticateJWT,
@@ -86,18 +94,24 @@ router.get(
   getMyStats
 );
 
+// =========================
+// Producer Stats Chart 
+// =========================
 router.get(
   "/me/stats/chart",
   authenticateJWT,
   roleMiddleware("producer"),
   getMyStatsChart 
 );
+
+// =========================
+// Update singolo slot
+// =========================
 router.patch(
   "/me/updateslot",
   authenticateJWT,
   roleMiddleware("producer"),
   updateSlot
 );
-
 
 export default router;

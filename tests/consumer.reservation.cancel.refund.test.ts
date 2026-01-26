@@ -7,6 +7,13 @@ import ProducerProfile from "../src/models/ProducerProfile";
 import ProducerSlot from "../src/models/ProducerSlot";
 import Reservation from "../src/models/Reservation";
 
+/**
+ * TEST DI INTEGRAZIONE
+ * Scenario:
+ * - un consumer crea una reservation >24h
+ * - poi la cancella (requestedKwh = 0)
+ * - deve ricevere il refund completo del credito
+ */
 describe("Consumer reservation cancellation with refund (>24h)", () => {
   let consumer: User;
   let consumerToken: string;
@@ -20,8 +27,11 @@ describe("Consumer reservation cancellation with refund (>24h)", () => {
 
   beforeAll(async () => {
     /* =========================
-       1️⃣ CREA CONSUMER
-    ========================= */
+       CREA CONSUMER
+       =========================
+       - consumer con credito iniziale
+       - password hashata come in produzione
+    */
     consumer = await User.create({
       email: "consumer_refund@test.com",
       passwordHash: await bcrypt.hash("consumer123", 10),
@@ -30,8 +40,11 @@ describe("Consumer reservation cancellation with refund (>24h)", () => {
     } as any);
 
     /* =========================
-       2️⃣ LOGIN CONSUMER
-    ========================= */
+       LOGIN CONSUMER
+       =========================
+       - JWT valido
+       - usato nelle chiamate protette
+    */
     const loginRes = await request(app)
       .post("/auth/login")
       .send({
@@ -42,11 +55,12 @@ describe("Consumer reservation cancellation with refund (>24h)", () => {
     expect(loginRes.status).toBe(200);
     consumerToken = loginRes.body.accessToken;
 
+    // viene salvato il credito iniziale per confronto finale
     creditBeforeReservation = consumer.credit;
 
     /* =========================
-       3️⃣ CREA PRODUCER + PROFILE
-    ========================= */
+       CREA PRODUCER + PROFILE
+       ========================= */
     producerUser = await User.create({
       email: "producer_refund@test.com",
       passwordHash: await bcrypt.hash("producer123", 10),
@@ -61,9 +75,12 @@ describe("Consumer reservation cancellation with refund (>24h)", () => {
     } as any);
 
     /* =========================
-       4️⃣ CREA SLOT > 24h
-    ========================= */
-    const future = new Date(Date.now() + 48 * 60 * 60 * 1000); // +48h
+       CREA SLOT > 24h
+       =========================
+       - slot nel futuro (48h)
+       - così la cancellazione è rimborsabile
+    */
+    const future = new Date(Date.now() + 48 * 60 * 60 * 1000);
     const date = future.toISOString().split("T")[0];
     const hour = future.getHours();
 
@@ -76,8 +93,8 @@ describe("Consumer reservation cancellation with refund (>24h)", () => {
     } as any);
 
     /* =========================
-       5️⃣ CREA RESERVATION
-    ========================= */
+       CREA RESERVATION
+       ========================= */
     const createRes = await request(app)
       .post("/consumers/me/reservations")
       .set("Authorization", `Bearer ${consumerToken}`)
@@ -92,29 +109,35 @@ describe("Consumer reservation cancellation with refund (>24h)", () => {
     reservationId = createRes.body.id;
   });
 
-it("should refund credit when reservation is cancelled before 24h (DEBUG)", async () => {
- 
-  const url = `/consumers/me/updatereservations/${reservationId}`;
-  const cancelRes = await request(app)
-    .patch(url)
-    .set("Authorization", `Bearer ${consumerToken}`)
-    .send({ requestedKwh: 0 });
+  /**
+   * TEST PRINCIPALE:
+   * - cancellazione con requestedKwh = 0
+   * - oltre 24h → refund completo
+   */
+  it("should refund credit when reservation is cancelled before 24h (DEBUG)", async () => {
+    const url = `/consumers/me/updatereservations/${reservationId}`;
 
-  expect(cancelRes.status).toBe(200);
-  expect(cancelRes.body.message).toBe(
-    "Reservation cancellata correttamente"
-  );
+    const cancelRes = await request(app)
+      .patch(url)
+      .set("Authorization", `Bearer ${consumerToken}`)
+      .send({ requestedKwh: 0 });
 
-  const afterCancel = await User.findByPk(consumer.id);
+    expect(cancelRes.status).toBe(200);
+    expect(cancelRes.body.message).toBe(
+      "Reservation cancellata correttamente"
+    );
 
-  expect(afterCancel!.credit).toBe(creditBeforeReservation);
-});
+    // ricarico il consumer dal DB
+    const afterCancel = await User.findByPk(consumer.id);
 
+    // credito tornato ESATTAMENTE al valore iniziale
+    expect(afterCancel!.credit).toBe(creditBeforeReservation);
+  });
 
+  /* =========================
+     CLEANUP FINALE
+     ========================= */
   afterAll(async () => {
-    /* =========================
-       CLEANUP COMPLETO
-    ========================= */
     await Reservation.destroy({ where: { id: reservationId } });
     await ProducerSlot.destroy({ where: { producerProfileId: producerProfile.id } });
     await ProducerProfile.destroy({ where: { id: producerProfile.id } });

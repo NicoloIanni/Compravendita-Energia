@@ -1,3 +1,15 @@
+/**
+ * Producer Stats Controller
+ *
+ * Espone statistiche aggregate e guadagni del produttore.
+ * Tutte le query sono filtrabili per intervallo temporale.
+ *
+ * Questo controller non fa calcoli:
+ * - prepara input
+ * - valida query
+ * - delega tutto al Service Layer
+ */
+
 import { Request, Response, NextFunction } from "express";
 import { producerStatsService } from "../container";
 import { ChartJSNodeCanvas } from "chartjs-node-canvas";
@@ -20,6 +32,15 @@ const chartCanvas = new ChartJSNodeCanvas({
 
 /**
  * GET /producers/me/earnings
+ *
+ * Calcola i guadagni del produttore in un intervallo temporale.
+ *
+ * Formula logica:
+ * somma( allocatedKwh * pricePerKwh )
+ *
+ * Query params:
+ * - from=YYYY-MM-DD
+ * - to=YYYY-MM-DD
  */
 export const getMyEarnings = async (
   req: Request,
@@ -58,7 +79,16 @@ export const getMyEarnings = async (
 
 /**
  * GET /producers/me/stats
- * → statistiche GIORNALIERE
+ *
+ * Ritorna, per ogni fascia oraria:
+ * - % minima di energia venduta
+ * - % massima
+ * - % media
+ * - deviazione standard
+ *
+ * Query params:
+ * - from=YYYY-MM-DD
+ * - to=YYYY-MM-DD
  */
 export const getMyStats = async (
   req: Request,
@@ -129,7 +159,10 @@ export const getMyStats = async (
 
 /**
  * GET /producers/me/stats/chart
- * → grafico PNG per GIORNO (avgPercent)
+ *
+ * Fornisce statitsiche in fotmato PNG (con grafico a barre e linea)
+ * Query param aggiuntivo:
+ * - format=json | png
  */
 export const getMyStatsChart = async (
   req: Request,
@@ -186,7 +219,7 @@ export const getMyStatsChart = async (
       toHour: toHr,
     });
 
-    // costrusico labels e values
+    // costruzione labels e values
     const labels: string[] = [];
     const minValues: number[] = [];
     const avgValues: number[] = [];

@@ -1,8 +1,20 @@
 const path = require("path");
 
+// Configurazione sequelize-cli
+// Serve ad indicare a Sequelize dove trovare
+// config, modelli, migration e seed
 module.exports = {
+
+  // Percorso del file di configurazione Sequelize
+  // (connessione DB per dev/test/prod)
   "config": path.resolve(__dirname, "sequelize.config.js"),
+
+  // Percorso dei model Sequelize (User, ProducerSlot, Reservation, ecc.)
   "models-path": path.resolve(__dirname, "src/models"),
+
+  // Percorso dei seed (dati iniziali, utenti di test, slot, ecc.)
   "seeders-path": path.resolve(__dirname, "src/seeders"),
+
+  // Percorso delle migration (creazione/alterazione tabelle)
   "migrations-path": path.resolve(__dirname, "src/migrations")
 };

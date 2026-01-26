@@ -1,44 +1,83 @@
 services:
+  # =========================
+  # DATABASE POSTGRES
+  # =========================
   db:
+    # Immagine ufficiale PostgreSQL (versione 16)
     image: postgres:16
+
+    # Riavvia automaticamente il container in caso di crash
     restart: always
+
+    # Variabili d'ambiente usate da PostgreSQL all'avvio
     environment:
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
-      POSTGRES_DB: energy
+      POSTGRES_USER: app        # utente DB
+      POSTGRES_PASSWORD: app    # password DB
+      POSTGRES_DB: energy       # nome database
+
+    # Espone PostgreSQL sulla porta locale 5432
     ports:
       - "5432:5432"
+
+    # Healthcheck: verifica che il DB sia pronto ad accettare connessioni
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U app -d energy"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+    # Volume persistente per i dati del database
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  # =========================
+  # API NODE / EXPRESS
+  # =========================
   api:
+    # Build dell'immagine Docker a partire dal Dockerfile
     build: .
+
+    # File .env specifico per Docker (DB_HOST, DB_PORT, ecc.)
     env_file: .env.docker
+
+    # Espone l'API sulla porta 3000
     ports:
       - "3000:3000"
+
+    # L'API parte solo quando il DB è healthy
     depends_on:
       db:
         condition: service_healthy
+
+    # Variabili d'ambiente override (runtime)
     environment:
-     JWT_SECRET: change_me
-     ADMIN_USER: admin
+     JWT_SECRET: change_me      # segreto JWT (placeholder!)
+     ADMIN_USER: admin          # credenziali admin seed
      ADMIN_PASS: admin
-  
+
+  # =========================
+  # PGADMIN (GUI DB)
+  # =========================
   pgadmin:
+     # Interfaccia web per gestire PostgreSQL
      image: dpage/pgadmin4
+
+     # Credenziali di accesso a pgAdmin
      environment:
        PGADMIN_DEFAULT_EMAIL: admin@example.com
        PGADMIN_DEFAULT_PASSWORD: admin
+
+     # Espone pgAdmin su http://localhost:8080
      ports:
        - "8080:80"
+
+     # Dipende dal database
      depends_on:
        - db
+
+# =========================
+# VOLUMI PERSISTENTI
+# =========================
 volumes:
+  # Volume per persistere i dati PostgreSQL
   pgdata:
-
-

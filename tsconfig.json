@@ -1,20 +1,67 @@
 {
   "compilerOptions": {
+    // Target JavaScript generato
+    // ES2020 → supporta async/await, optional chaining, ecc.
     "target": "ES2020",
+
+    // Sistema di moduli usato in output
+    // commonjs è lo standard Node.js
     "module": "commonjs",
+
+    // Abilita tutte le regole di type checking più restrittive
+    // (no implicit any, strict null checks, ecc.)
     "strict": true,
+
+    // Permette import più semplici da moduli CommonJS
+    // es: import express from "express"
     "esModuleInterop": true,
+
+    // Salta il controllo dei tipi nei file .d.ts delle librerie
+    // Migliora i tempi di build, utile in progetti reali
     "skipLibCheck": true,
+
+    // Directory di output del codice compilato
     "outDir": "dist",
+
+    // Directory radice del codice sorgente
+    // Serve a mantenere la struttura src → dist
     "rootDir": "src",
+
+    // Permette l'import di file JSON come moduli
+    // es: import config from "./config.json"
     "resolveJsonModule": true,
+
+    // Vietato usare variabili di tipo implicito any
+    // Rafforza la sicurezza tipologica
     "noImplicitAny": true,
+
+    // Impone coerenza maiuscole/minuscole nei nomi dei file
+    // Evita bug tra Windows (case-insensitive) e Linux/Docker
     "forceConsistentCasingInFileNames": true,
+
+    // Abilita l’uso dei decorator (necessari per sequelize-typescript)
     "experimentalDecorators": true,
+
+    // Genera i metadata dei decorator
+    // Necessario per ORM come Sequelize con classi annotate
     "emitDecoratorMetadata": true,
+
+    // Disabilita il nuovo comportamento ES per i campi di classe
+    // Serve per compatibilità con sequelize-typescript
     "useDefineForClassFields": false,
+
+    // Directory in cui TypeScript cerca i file di definizione dei tipi
+    // - src/types → tipi custom (es. estensione Express.Request)
+    // - node_modules/@types → tipi delle librerie
     "typeRoots": ["src/types", "node_modules/@types"]
   },
+
+  // File inclusi nella compilazione
+  // Tutto il codice applicativo
   "include": ["src"],
+
+  // Directory escluse
+  // dist: output compilato
+  // node_modules: dipendenze esterne
   "exclude": ["node_modules", "dist"]
 }

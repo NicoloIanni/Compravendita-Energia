@@ -1,3 +1,14 @@
+/**
+ * Consumer Controller
+ *
+ * Gestisce tutte le operazioni eseguibili da un utente con ruolo CONSUMER:
+ * - creazione prenotazioni
+ * - modifica / cancellazione
+ * - storico acquisti
+ * - carbon footprint
+ *
+ */
+
 import { Request, Response, NextFunction } from "express";
 import { ReservationService } from "../services/ReservationService";
 import { ConsumerQueryService } from "../services/ConsumerService";
@@ -5,8 +16,6 @@ import { ProducerService } from "../services/ProducerSlotService";
 import { ProducerProfileRepository } from "../repositories/ProducerProfileRepository";
 import { ProducerSlotRepository } from "../repositories/ProducerSlotRepository";
 import ProducerSlot from "../models/ProducerSlot";
-
-
 export class ConsumerReservationController {
   constructor(
     private readonly reservationService: ReservationService,
@@ -15,7 +24,16 @@ export class ConsumerReservationController {
 
   /**
    * POST /consumers/me/reservations
-   * Day 4 – Create reservation
+   *
+   * Crea una prenotazione PENDING per un determinato slot (date+hour) e produttore.
+   * Regole importanti (demandate al service):
+   * - minimo 0.1 kWh
+   * - regola 24h (prenotabile solo entro la finestra)
+   * - scalare subito il credito (transaction)
+   *
+   * Response:
+   * - 201 con la prenotazione creata
+   * - errori demandati a middleware errorHandler
    */
   createReservation = async (
     req: Request,
@@ -23,8 +41,10 @@ export class ConsumerReservationController {
     next: NextFunction
   ) => {
     try {
+      // ID consumer preso dal JWT (req.user è popolato dal middleware auth)
       const consumerId = req.user!.userId;
 
+      // payload richiesto
       const { producerProfileId, date, hour, requestedKwh } = req.body;
 
       const reservation = await this.reservationService.createReservation({
@@ -43,7 +63,13 @@ export class ConsumerReservationController {
 
   /**
    * PATCH /consumers/me/reservations/:id
-   * Day 5 – Update / Cancel reservation
+   *
+   * Modifica o cancella una prenotazione.
+   * Convenzione: se requestedKwh === 0 => cancellazione.
+   *
+   * Regola 24h (demandata al service):
+   * - cancellazione >24h => rimborso
+   * - cancellazione <=24h => nessun rimborso (paghi tutto)
    */
   updateReservation = async (
     req: Request,
@@ -55,6 +81,7 @@ export class ConsumerReservationController {
       const reservationId = Number(req.params.id);
       const { requestedKwh } = req.body;
 
+      // Validazione minima: id e kWh devono essere numeri
       if (Number.isNaN(reservationId)) {
         return res.status(400).json({ error: "INVALID_RESERVATION_ID" });
       }
@@ -85,61 +112,57 @@ export class ConsumerReservationController {
 
   /**
    * GET /consumers/me/purchases
-   * Day 8 – Purchases
+   *
+   * Ritorna lo storico acquisti del consumer con filtri opzionali:
+   * - producerId (in realtà nel service è trattato come producerProfileId)
+   * - energyType
+   * - intervallo temporale from/to (datetime parse con new Date)
+   *
+   * Output atteso: lista acquisti (dipende dal service).
    */
-getMyPurchases = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const consumerId = req.user!.userId;
-    const { producerId, energyType, from, to } = req.query;
+  getMyPurchases = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const consumerId = req.user!.userId;
+      const { producerId, energyType, from, to } = req.query;
 
-    // parse di from/to con data + ora
-    const fromDate = from ? new Date(from as string) : undefined;
-    const toDate = to ? new Date(to as string) : undefined;
+      // parse date (from/to includono anche ora, es: 2026-01-07 10:00:00)
+      const fromDate = from ? new Date(from as string) : undefined;
+      const toDate = to ? new Date(to as string) : undefined;
 
-    // validazioni formato date
-    if (
-      (from && isNaN(fromDate!.getTime())) ||
-      (to && isNaN(toDate!.getTime()))
-    ) {
-      return res.status(400).json({ error: "INVALID_DATE_FORMAT" });
+      // validazione formato date
+      if ((from && isNaN(fromDate!.getTime())) || (to && isNaN(toDate!.getTime()))) {
+        return res.status(400).json({ error: "INVALID_DATE_FORMAT" });
+      }
+
+      // range coerente
+      if (fromDate && toDate && fromDate > toDate) {
+        return res.status(400).json({ error: "from must be <= to" });
+      }
+
+      const result = await this.consumerQueryService.getPurchases({
+        consumerId,
+        producerProfileId: producerId ? Number(producerId) : undefined,
+        energyType: energyType as string | undefined,
+        from: fromDate,
+        to: toDate,
+      });
+
+      return res.status(200).json(result);
+    } catch (err) {
+      next(err);
     }
-
-    if (fromDate && toDate && fromDate > toDate) {
-      return res
-        .status(400)
-        .json({ error: "from must be <= to" });
-    }
-
-    const result = await this.consumerQueryService.getPurchases({
-      consumerId,
-      producerProfileId: producerId
-        ? Number(producerId)
-        : undefined,
-      energyType: energyType as string | undefined,
-      from: fromDate,
-      to: toDate,
-    });
-
-    return res.status(200).json(result);
-  } catch (err) {
-    next(err);
-  }
-};
-
+  };
 
   /**
    * GET /consumers/me/carbon
-   * Day 8 – Carbon footprint
+   *
+   * Calcola carbon footprint del consumer in un intervallo temporale.
+   * Il service dovrebbe restituire:
+   * - dettaglio per slot
+   * - totale (somma)
+   *
    */
-  getMyCarbon = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) => {
+  getMyCarbon = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const consumerId = req.user!.userId;
       const { from, to } = req.query;
@@ -147,10 +170,7 @@ getMyPurchases = async (
       const fromDate = from ? new Date(from as string) : undefined;
       const toDate = to ? new Date(to as string) : undefined;
 
-      if (
-        (from && isNaN(fromDate!.getTime())) ||
-        (to && isNaN(toDate!.getTime()))
-      ) {
+      if ((from && isNaN(fromDate!.getTime())) || (to && isNaN(toDate!.getTime()))) {
         return res.status(400).json({ error: "INVALID_DATE_FORMAT" });
       }
 
@@ -168,18 +188,19 @@ getMyPurchases = async (
     } catch (err) {
       next(err);
     }
-  };  
+  };
 }
-
 
 /**
  * GET /consumers/me/producers
- * Lista tutti i producer con slot formattati
+ *
+ * Endpoint “utility”: lista produttori e slot disponibili.
  */
 const producerService = new ProducerService(
   new ProducerProfileRepository(),
   new ProducerSlotRepository({ producerSlotModel: ProducerSlot })
 );
+
 export const listProducersWithSlots = async (
   req: Request,
   res: Response,
@@ -188,10 +209,8 @@ export const listProducersWithSlots = async (
   try {
     const { date } = req.query;
 
-    // importa istanza del service
-    const results = await producerService.getAllWithSlots(
-      date as string | undefined
-    );
+    // date opzionale: se non passato, il service può decidere default (es: domani)
+    const results = await producerService.getAllWithSlots(date as string | undefined);
 
     return res.status(200).json(results);
   } catch (err) {

@@ -6,7 +6,15 @@ import Reservation from "../src/models/Reservation";
 
 import { settlementService } from "../src/container";
 
+/**
+ * TEST DI INTEGRAZIONE
+ * Scenario:
+ * - uno slot ha capacità inferiore alla somma delle richieste
+ * - si applica il taglio proporzionale
+ * - viene fatto il refund automatico del credito
+ */
 describe("Producer resolve with oversubscription (proportional cut + refund)", () => {
+
   let producerUser: User;
   let producerProfile: ProducerProfile;
 
@@ -19,13 +27,15 @@ describe("Producer resolve with oversubscription (proportional cut + refund)", (
   let creditABefore: number;
   let creditBBefore: number;
 
+  // data molto futura per evitare vincoli temporali
   const date = "2200-01-01";
   const hour = 12;
 
   beforeAll(async () => {
-  
 
-    // ==== CREA PRODUTTORE ====
+    // =========================
+    // CREA PRODUTTORE
+    // =========================
     producerUser = await User.create({
       email: `producer_oversub_${Date.now()}@test.com`,
       passwordHash: await bcrypt.hash("producerX123", 10),
@@ -33,24 +43,21 @@ describe("Producer resolve with oversubscription (proportional cut + refund)", (
       credit: 0,
     } as any);
 
-
-
     producerProfile = await ProducerProfile.create({
       userId: producerUser.id,
       energyType: "Fotovoltaico",
       co2_g_per_kwh: 10,
     } as any);
 
-
-    // ==== CREA CONSUMATORI ====
+    // =========================
+    // CREA CONSUMATORI
+    // =========================
     consumerA = await User.create({
       email: `consumerA_${Date.now()}@test.com`,
       passwordHash: await bcrypt.hash("consumerA123", 10),
       role: "consumer",
       credit: 100,
     } as any);
-
-
 
     consumerB = await User.create({
       email: `consumerB_${Date.now()}@test.com`,
@@ -59,38 +66,24 @@ describe("Producer resolve with oversubscription (proportional cut + refund)", (
       credit: 100,
     } as any);
 
-
-
+    // salvo il credito iniziale (per verificare refund)
     creditABefore = consumerA.credit;
     creditBBefore = consumerB.credit;
 
+    // =========================
+    // CREA SLOT (CAPACITÀ LIMITATA)
+    // =========================
+    await ProducerSlot.create({
+      producerProfileId: producerProfile.id,
+      date,
+      hour,
+      capacityKwh: 10, // capacità minore delle richieste totali
+      pricePerKwh: 1,
+    } as any);
 
-
-    // ==== LOG SLOT PRE-ESISTENTI PER QUESTO PROFILE ====
-    const preExistingSlots = await ProducerSlot.findAll({
-      where: { producerProfileId: producerProfile.id },
-    });
-
-
-    // ==== CREA LO SLOT DI TEST ====
-    
-
-    try {
-      await ProducerSlot.create({
-        producerProfileId: producerProfile.id,
-        date,
-        hour,
-        capacityKwh: 10,
-        pricePerKwh: 1,
-      } as any);
-          } catch (err) {
-      console.error("Error creating ProducerSlot:", err);
-      throw err;
-    }
-
- 
-
-    // ==== CREA PRENOTAZIONI ====
+    // =========================
+    // CREA PRENOTAZIONI PENDING
+    // =========================
     reservationA = await Reservation.create({
       consumerId: consumerA.id,
       producerProfileId: producerProfile.id,
@@ -101,8 +94,6 @@ describe("Producer resolve with oversubscription (proportional cut + refund)", (
       status: "PENDING",
       totalCostCharged: 8,
     } as any);
-
- 
 
     reservationB = await Reservation.create({
       consumerId: consumerB.id,
@@ -115,16 +106,23 @@ describe("Producer resolve with oversubscription (proportional cut + refund)", (
       totalCostCharged: 8,
     } as any);
 
-
-    // ==== SIMULA ADDEBITO ====
+    // =========================
+    // SIMULA ADDEBITO INIZIALE
+    // =========================
     consumerA.credit -= 8;
     consumerB.credit -= 8;
     await consumerA.save();
     await consumerB.save();
-
   });
-  
 
+  /**
+   * TEST PRINCIPALE
+   * - richieste totali: 16 kWh
+   * - capacità slot: 10 kWh
+   * - ratio = 10 / 16 = 0.625
+   * - allocazione: 8 * 0.625 = 5 kWh ciascuno
+   * - refund: 3 kWh * prezzo
+   */
   it("should allocate proportionally and refund the difference", async () => {
 
     const result = await settlementService.resolveDay(
@@ -132,11 +130,15 @@ describe("Producer resolve with oversubscription (proportional cut + refund)", (
       date
     );
 
-  
-
+    // =========================
+    // ASSERT RISULTATO RISOLUZIONE
+    // =========================
     expect(result.resolvedHours).toBe(1);
     expect(result.oversubscribedHours).toBe(1);
 
+    // =========================
+    // ASSERT RESERVATIONS
+    // =========================
     const updatedA = await Reservation.findByPk(reservationA.id);
     const updatedB = await Reservation.findByPk(reservationB.id);
 
@@ -149,17 +151,20 @@ describe("Producer resolve with oversubscription (proportional cut + refund)", (
     expect(updatedA?.totalCostCharged).toBeCloseTo(5, 3);
     expect(updatedB?.totalCostCharged).toBeCloseTo(5, 3);
 
+    // =========================
+    // ASSERT REFUND CREDITI
+    // =========================
     const finalA = await User.findByPk(consumerA.id);
     const finalB = await User.findByPk(consumerB.id);
-
 
     expect(finalA!.credit).toBe(creditABefore - 5);
     expect(finalB!.credit).toBe(creditBBefore - 5);
   });
 
   afterAll(async () => {
-
-
+    // =========================
+    // CLEANUP
+    // =========================
     await Reservation.destroy({
       where: { id: [reservationA?.id, reservationB?.id].filter(Boolean) },
     });

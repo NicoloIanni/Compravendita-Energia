@@ -2,6 +2,7 @@ import { Op } from "sequelize";
 import ProducerSlot from "../models/ProducerSlot";
 import Reservation from "../models/Reservation";
 
+// DTO per overview richieste produttore
 export type ProducerRequestOverview = {
   hour: number;
   capacityKwh: number;
@@ -10,6 +11,7 @@ export type ProducerRequestOverview = {
   occupancyPercent: number;
 };
 
+// Calcola l'overview delle richieste per produttore e data
 export async function getProducerRequestsOverview(params: {
   producerProfileId: number;
   date: string;
@@ -23,10 +25,12 @@ export async function getProducerRequestsOverview(params: {
     toHour = 23,
   } = params;
 
+  // Validazione dominio su range orario
   if (fromHour < 0 || toHour > 23 || fromHour > toHour) {
     throw new Error("Intervallo ore non valido");
   }
 
+  // Recupera slot del produttore
   const slots = await ProducerSlot.findAll({
     where: {
       producerProfileId,
@@ -41,7 +45,7 @@ export async function getProducerRequestsOverview(params: {
   for (const slot of slots) {
     const capacity = Number(slot.capacityKwh);
 
-    // somma delle richieste totali (PENDING + ALLOCATED)
+    // Somma richieste totali (PENDING + ALLOCATED)
     const sumRequested = await Reservation.sum("requestedKwh", {
       where: {
         producerProfileId,
@@ -52,7 +56,7 @@ export async function getProducerRequestsOverview(params: {
     });
     const sumRequestedKwh = Number(sumRequested || 0);
 
-    // somma degli kWh allocati (dopo resolve)
+    // Somma allocazioni effettive
     const sumAllocated = await Reservation.sum("allocatedKwh", {
       where: {
         producerProfileId,
@@ -63,7 +67,7 @@ export async function getProducerRequestsOverview(params: {
     });
     const sumAllocatedKwh = Number(sumAllocated || 0);
 
-    // nuova percentuale basata su tutte le richieste
+    // Percentuale occupazione basata sulle richieste
     const occupancyPercent =
       capacity > 0
         ? Number(((sumRequestedKwh / capacity) * 100).toFixed(2))

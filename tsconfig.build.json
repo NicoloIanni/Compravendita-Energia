@@ -1,9 +1,25 @@
 {
+  // Estende la configurazione base del progetto
+  // (target, strict, module, paths, ecc.)
   "extends": "./tsconfig.json",
+
   "compilerOptions": {
+    // Directory di output dei file compilati (.js)
+    // Usata in produzione e dal Dockerfile
     "outDir": "dist",
+
+    // Directory radice del codice sorgente
+    // Serve a mantenere la stessa struttura src → dist
     "rootDir": "src"
   },
+
+  // File TypeScript da includere nella build
+  // solo il codice applicativo
   "include": ["src/**/*.ts"],
+
+  // Directory escluse dalla compilazione
+  // - tests: non vanno in produzione
+  // - dist: evita loop di compilazione
+  // - node_modules: librerie esterne
   "exclude": ["tests", "dist", "node_modules"]
 }

@@ -1,8 +1,24 @@
 {
+  // Estende la configurazione principale di TypeScript
+  // In questo modo eredita TUTTE le regole di tsconfig.json
+  // (strict, decorators, typeRoots, ecc.)
   "extends": "./tsconfig.json",
+
   "compilerOptions": {
+    // Impedisce a TypeScript di generare file .js
+    // Fondamentale per i test:
+    // - Jest usa ts-jest
+    // - i test non devono finire in dist/
     "noEmit": true,
-     "types": ["jest", "node"]
+
+    // Tipi globali disponibili SOLO in ambiente test
+    // - jest → describe, it, expect, beforeAll, ecc.
+    // - node → process, Buffer, __dirname, ecc.
+    "types": ["jest", "node"]
   },
+
+  // File inclusi nel controllo dei tipi
+  // - tests → file di test Jest
+  // - src → codice applicativo usato dai test
   "include": ["tests", "src"]
 }

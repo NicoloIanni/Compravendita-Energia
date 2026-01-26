@@ -1,5 +1,3 @@
-
-
 import { Router } from "express";
 import { authenticateJWT } from "../middlewares/auth";
 import { roleMiddleware } from "../middlewares/role";
@@ -8,21 +6,24 @@ import { adminService } from "../container";
 
 const router = Router();
 
-// controller con AdminService iniettato
+// Istanza del controller con AdminService iniettato
+// (dependency injection: il controller non crea da solo il service)
 const controller = new AdminController(adminService);
 
 // =========================
-// Day 9 – CREATE PRODUCER
+// CREATE PRODUCER
+// Endpoint admin per creare un nuovo produttore
 // =========================
 router.post(
   "/producers",
-  authenticateJWT,
-  roleMiddleware("admin"),
+  authenticateJWT,          // verifica JWT
+  roleMiddleware("admin"),  // solo admin
   controller.createProducer
 );
 
 // =========================
-// Day 9 – CREATE CONSUMER
+// CREATE CONSUMER
+// Endpoint admin per creare un nuovo consumer
 // =========================
 router.post(
   "/consumers",
@@ -30,8 +31,10 @@ router.post(
   roleMiddleware("admin"),
   controller.createConsumer
 );
+
 // =========================
-// Day 9 – VIEW PRODUCERS
+// VIEW PRODUCERS
+// Lista di tutti i produttori
 // =========================
 router.get(
   "/producers",
@@ -41,7 +44,8 @@ router.get(
 );
 
 // =========================
-// Day 9 – VIEW CONSUMERS
+// VIEW CONSUMERS
+// Lista di tutti i consumer
 // =========================
 router.get(
   "/consumers",
@@ -49,6 +53,5 @@ router.get(
   roleMiddleware("admin"),
   controller.getConsumers
 );
-
 
 export default router;

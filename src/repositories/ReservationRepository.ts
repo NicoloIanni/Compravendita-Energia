@@ -2,13 +2,14 @@ import { Transaction, Op } from "sequelize";
 import Reservation from "../models/Reservation";
 import ProducerProfile from "../models/ProducerProfile";
 
-/* NOTE: puoi aggiungere tipi più stretti a option se vuoi, ad es. FindOptions, AggregateOptions,
-   ma per semplicità li lasciamo `any` per supportare facilmente il mocking nei test. */
-
+/*
+ * Repository Reservation
+ * Incapsula tutta la logica di accesso ai dati delle prenotazioni
+ */
 export class ReservationRepository {
-  /* =========================
-   * CREATE
-   * ========================= */
+
+
+  // Crea una nuova prenotazione
   async create(
     data: {
       consumerId: number;
@@ -25,18 +26,19 @@ export class ReservationRepository {
     return Reservation.create(data, { transaction: tx });
   }
 
-  /* =========================
-   * FIND BY ID
-   * ========================= */
+
+  // Recupera una prenotazione per id
   async findById(id: number, tx?: Transaction): Promise<Reservation | null> {
     return Reservation.findByPk(id, {
       transaction: tx,
     });
   }
 
-  /* =========================
-   * FIND BY ID FOR UPDATE (LOCK)
-   * ========================= */
+  // =========================
+  // FIND BY ID FOR UPDATE (LOCK)
+  // =========================
+
+  // Recupera una prenotazione con lock pessimista
   async findByIdForUpdate(
     id: number,
     tx: Transaction
@@ -47,9 +49,8 @@ export class ReservationRepository {
     });
   }
 
-  /* =========================
-   * SAVE (UNICO METODO)
-   * ========================= */
+
+  // Salva una prenotazione già caricata
   async save(
     reservation: Reservation,
     tx?: Transaction
@@ -57,9 +58,8 @@ export class ReservationRepository {
     return reservation.save({ transaction: tx });
   }
 
-  /* =========================
-   * SUM REQUESTED (DAY 6)
-   * ========================= */
+
+  // Somma le richieste PENDING per uno slot
   async sumRequestedForSlot(
     producerProfileId: number,
     date: string,
@@ -77,9 +77,11 @@ export class ReservationRepository {
     return Number(result || 0);
   }
 
-  /* =========================
-   * FIND PENDING FOR RESOLVE (DAY 7)
-   * ========================= */
+  // =========================
+  // FIND PENDING FOR RESOLVE
+  // =========================
+
+  // Recupera tutte le prenotazioni PENDING di uno slot con lock
   async findPendingForResolveBySlot(
     producerProfileId: number,
     date: string,
@@ -99,9 +101,12 @@ export class ReservationRepository {
     });
   }
 
-  /* =========================
-   * Consumer purchases / carbon (DAY 8)
-   * ========================= */
+  // =========================
+  // Consumer purchases / carbon
+  // =========================
+
+  // Recupera le prenotazioni allocate (o pending) di un consumer
+  // Supporta filtri per produttore, tipo energia e intervallo date
   async findAllocatedByConsumer(filters: {
     consumerId: number;
     producerProfileId?: number;
@@ -144,9 +149,8 @@ export class ReservationRepository {
     });
   }
 
-  /* =========================
-   * Producer earnings / stats (DAY 8)
-   * ========================= */
+
+  // Recupera le prenotazioni ALLOCATED di un produttore
   async findAllocatedByProducer(filters: {
     producerProfileId: number;
     from?: Date;
@@ -177,17 +181,15 @@ export class ReservationRepository {
       include: [
         {
           model: ProducerProfile,
-          required: false, // opzionale, non filtra
+          required: false,
         },
       ],
     });
   }
 
 
-
-  /* =========================
-   * Find pending by consumer + slot (exists pending)
-   * ========================= */
+  // Verifica se esiste già una prenotazione PENDING
+  // per lo stesso consumer e lo stesso slot
   async findPendingByConsumerSlot(
     consumerId: number,
     producerProfileId: number,
@@ -207,10 +209,8 @@ export class ReservationRepository {
     });
   }
 
-  /* =========================
-   * Generic findOne
-   *   (serve per conflitto same hour)
-   * ========================= */
+
+  // Metodo generico di findOne (usato per controlli di conflitto)
   async findOne(options: any, tx?: Transaction): Promise<Reservation | null> {
     return Reservation.findOne({
       ...options,
@@ -218,9 +218,8 @@ export class ReservationRepository {
     });
   }
 
-  /* =========================
-   * Generic sum helper
-   * ========================= */
+
+  // Wrapper di Reservation.sum
   async sum(
     field: string | number | symbol,
     options: any
@@ -228,10 +227,8 @@ export class ReservationRepository {
     return Reservation.sum(field as any, options);
   }
 
-  /* =========================
-   * Somma allocated per slot
-   *  (usato in createReservation)
-   * ========================= */
+
+  // Somma l'energia allocata per uno slot
   async sumAllocatedForSlot(
     producerProfileId: number,
     date: string,

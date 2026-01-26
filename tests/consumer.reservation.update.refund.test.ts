@@ -6,6 +6,13 @@ import User from "../src/models/User";
 import ProducerProfile from "../src/models/ProducerProfile";
 import ProducerSlot from "../src/models/ProducerSlot";
 
+/**
+ * TEST DI INTEGRAZIONE
+ * Scenario:
+ * - un consumer crea una reservation >24h
+ * - poi riduce i kWh richiesti
+ * - la differenza deve essere rimborsata
+ */
 describe("Consumer reservation update with refund (>24h)", () => {
   let consumer: User;
   let producerProfile: ProducerProfile;
@@ -15,7 +22,7 @@ describe("Consumer reservation update with refund (>24h)", () => {
   beforeAll(async () => {
 
     // =========================
-    // Producer
+    // CREA PRODUCER
     // =========================
     const producerUser = await User.create({
       email: "producer@test.com",
@@ -30,7 +37,10 @@ describe("Consumer reservation update with refund (>24h)", () => {
       co2_g_per_kwh: 40,
     });
 
-    // Slot domani + 48h
+    // =========================
+    // CREA SLOT > 24h
+    // =========================
+    // slot nel futuro (48h)
     const now = new Date();
     now.setHours(now.getHours() + 48);
     const date = now.toISOString().slice(0, 10);
@@ -46,7 +56,7 @@ describe("Consumer reservation update with refund (>24h)", () => {
     });
 
     // =========================
-    // Consumer
+    // CREA CONSUMER
     // =========================
     const password = "password";
     consumer = await User.create({
@@ -56,7 +66,9 @@ describe("Consumer reservation update with refund (>24h)", () => {
       credit: 100,
     });
 
-    // Login
+    // =========================
+    // LOGIN CONSUMER
+    // =========================
     const loginRes = await request(app)
       .post("/auth/login")
       .send({
@@ -67,7 +79,7 @@ describe("Consumer reservation update with refund (>24h)", () => {
     token = loginRes.body.accessToken;
 
     // =========================
-    // Create reservation (10 kWh)
+    // CREA RESERVATION (10 kWh)
     // =========================
     const createRes = await request(app)
       .post("/consumers/me/reservations")
@@ -83,12 +95,15 @@ describe("Consumer reservation update with refund (>24h)", () => {
     reservationId = createRes.body.id;
   });
 
-
+  /**
+   * TEST PRINCIPALE:
+   * - riduzione dei kWh (da 10 a 6)
+   * - costo iniziale: 10 * 2 = 20
+   * - nuovo costo: 6 * 2 = 12
+   * - refund atteso: 8
+   */
   it("should refund credit when reducing requested kWh", async () => {
-
-
     const url = `/consumers/me/updatereservations/${reservationId}`;
-
 
     const res = await request(app)
       .patch(url)
@@ -97,22 +112,24 @@ describe("Consumer reservation update with refund (>24h)", () => {
         requestedKwh: 6,
       });
 
-
-
     expect(res.status).toBe(200);
     expect(res.body.message).toBe("Reservation modificata correttamente");
 
+    // ricarico consumer dal DB
     const updatedConsumer = await User.findByPk(consumer.id);
 
-
+    // credito finale:
+    // 100 - 20 + 8 = 88
     expect(updatedConsumer).not.toBeNull();
     expect(updatedConsumer!.credit).toBe(88);
   });
 
+  // =========================
+  // CLEANUP
+  // =========================
   afterAll(async () => {
     await ProducerSlot.destroy({ where: { producerProfileId: producerProfile.id } });
     await ProducerProfile.destroy({ where: { id: producerProfile.id } });
     await User.destroy({ where: { id: consumer.id } });
   });
-
 });

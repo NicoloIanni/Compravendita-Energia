@@ -7,7 +7,8 @@ import { ProducerSlotRepository } from "../repositories/ProducerSlotRepository";
 import User from "../models/User";
 import ProducerProfile from "../models/ProducerProfile";
 
-
+// Service applicativo per operazioni ADMIN
+// Contiene logica di business, non accesso diretto al DB
 export class AdminService {
   constructor(
     private userRepo: UserRepository,
@@ -15,7 +16,11 @@ export class AdminService {
     private slotRepo: ProducerSlotRepository
   ) {}
 
+  // =========================
+  // CREATE PRODUCER 
+  // =========================
   async createProducer(data: any) {
+    // Transazione esplicita: user + profile + slot devono essere atomici
     const t = await sequelize.transaction();
     try {
       const {
@@ -26,9 +31,11 @@ export class AdminService {
         slots = [],
       } = data;
 
+      // Hash della password prima del salvataggio
       const passwordHash = await bcrypt.hash(password, 10);
 
-      // 1️⃣ User (credit OBBLIGATORIO)
+      // Creazione utente producer
+      // credit obbligatorio anche se inizialmente 0
       const user = await this.userRepo.create(
         {
           email,
@@ -39,7 +46,7 @@ export class AdminService {
         { transaction: t }
       );
 
-      // 2️⃣ ProducerProfile
+      // Creazione profilo produttore
       const profile = await this.profileRepo.createProfile(
         {
           userId: user.id,
@@ -49,7 +56,7 @@ export class AdminService {
         { transaction: t }
       );
 
-      // 3️⃣ Slots
+      // Creazione slot iniziali (opzionali)
       for (const slot of slots) {
         await this.slotRepo.createSlot(
           {
@@ -63,19 +70,26 @@ export class AdminService {
         );
       }
 
+      // Commit finale della transazione
       await t.commit();
       return { userId: user.id };
     } catch (err) {
+      // Rollback completo in caso di errore
       await t.rollback();
       throw err;
     }
   }
 
+  // =========================
+  // CREATE CONSUMER 
+  // =========================
   async createConsumer(data: any) {
     const { email, password, credit } = data;
 
+    // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
+    // Creazione consumer
     const consumer = await this.userRepo.create({
       email,
       passwordHash,
@@ -85,35 +99,43 @@ export class AdminService {
 
     return { userId: consumer.id };
   }
+
+  // =========================
+  // VIEW PRODUCERS
+  // =========================
   async getAllProducers() {
     const producers = await User.findAll({
-    where: { role: "producer" },
-    include: [
-      {
-        model: ProducerProfile,
-        attributes: ["id", "energyType", "co2_g_per_kwh"],
-      },
-    ],
-  });
+      where: { role: "producer" },
+      include: [
+        {
+          model: ProducerProfile,
+          attributes: ["id", "energyType", "co2_g_per_kwh"],
+        },
+      ],
+    });
 
-  return producers.map((u) => ({
-    userId: u.id,
-    producerProfileId: u.producerProfile?.id,
-    email: u.email,
-    energyType: u.producerProfile?.energyType,
-    co2_g_per_kwh: u.producerProfile?.co2_g_per_kwh,
-  }));
-}
+    // Mappatura in DTO di risposta
+    return producers.map((u) => ({
+      userId: u.id,
+      producerProfileId: u.producerProfile?.id,
+      email: u.email,
+      energyType: u.producerProfile?.energyType,
+      co2_g_per_kwh: u.producerProfile?.co2_g_per_kwh,
+    }));
+  }
 
-async getAllConsumers() {
-  const consumers= await this.userRepo.findByRole("consumer");
+  // =========================
+  // VIEW CONSUMERS
+  // =========================
+  async getAllConsumers() {
+    const consumers = await this.userRepo.findByRole("consumer");
 
-  return consumers.map(c => ({
-  id: c.id,
-  email: c.email,
-  role: c.role,
-  credit: Number(c.credit.toFixed(2))
-}));
-}
-
+    // Normalizza il credito a 2 decimali
+    return consumers.map(c => ({
+      id: c.id,
+      email: c.email,
+      role: c.role,
+      credit: Number(c.credit.toFixed(2))
+    }));
+  }
 }

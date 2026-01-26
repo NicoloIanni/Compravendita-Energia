@@ -1,9 +1,10 @@
 import { QueryInterface } from "sequelize";
 import { addHours, format } from "date-fns";
 
+// Seed di una reservation di esempio
 export default {
   async up(queryInterface: QueryInterface) {
-    // 1️⃣ recupera consumer
+    // Recupera un consumer
     const [[consumer]]: any = await queryInterface.sequelize.query(`
       SELECT id, credit
       FROM "Users"
@@ -15,7 +16,7 @@ export default {
       throw new Error("No consumer found for reservation seed");
     }
 
-    // 2️⃣ recupera producer slot
+    // 2Recupera uno slot produttore
     const [[slot]]: any = await queryInterface.sequelize.query(`
       SELECT *
       FROM "ProducerSlots"
@@ -26,15 +27,17 @@ export default {
       throw new Error("No producer slot found for reservation seed");
     }
 
-    // 3️⃣ dati reservation
+    // Calcolo dati prenotazione
     const requestedKwh = 5;
     const totalCost = requestedKwh * slot.pricePerKwh;
 
+    // Verifica credito sufficiente
     if (consumer.credit < totalCost) {
       throw new Error("Consumer has insufficient credit for seed reservation");
     }
 
-    // 4️⃣ crea reservation (>24h garantito dal seed slot)
+    // Inserisce la reservation
+    // Stato PENDING per simulare una prenotazione non ancora risolta
     await queryInterface.bulkInsert("Reservations", [
       {
         consumerId: consumer.id,
@@ -42,7 +45,7 @@ export default {
         date: slot.date,
         hour: slot.hour,
         requestedKwh,
-        allocatedKwh: 5,
+        allocatedKwh: 5,               // inizialmente uguale alla richiesta
         status: "PENDING",
         totalCostCharged: totalCost,
         createdAt: new Date(),
@@ -50,7 +53,8 @@ export default {
       },
     ]);
 
-    // 5️⃣ scala il credito del consumer
+    // Scala il credito del consumer
+    // Simula il comportamento reale del ReservationService
     await queryInterface.sequelize.query(`
       UPDATE "Users"
       SET credit = credit - ${totalCost}
@@ -58,8 +62,8 @@ export default {
     `);
   },
 
+  // Rollback seed Reservations
   async down(queryInterface: QueryInterface) {
     await queryInterface.bulkDelete("Reservations", {});
   },
 };
-

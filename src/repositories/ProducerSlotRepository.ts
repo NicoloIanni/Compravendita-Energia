@@ -2,21 +2,29 @@ import type { Transaction } from "sequelize";
 import { Op } from "sequelize";
 import ProducerSlot from "../models/ProducerSlot";
 
+// Normalizza una Date in stringa YYYY-MM-DD
+// Serve per confronti coerenti lato DB
 function normalize(d?: Date): string | undefined {
   return d ? d.toISOString().slice(0, 10) : undefined;
 }
 
+// Repository per l'accesso ai dati di ProducerSlot
 export class ProducerSlotRepository {
   private model: typeof ProducerSlot;
 
+  // Il modello viene iniettato (pattern utile per test/mocking)
   constructor({ producerSlotModel }: { producerSlotModel: typeof ProducerSlot }) {
     this.model = producerSlotModel;
   }
 
+  // Crea un singolo slot
   async createSlot(data: any, options: any = {}) {
     return ProducerSlot.create(data, options);
   }
 
+  // Upsert batch di slot:
+  // - crea se non esistono
+  // - aggiorna capacity/price se esistono già
   async upsertBatch(
     slots: Partial<ProducerSlot>[],
     transaction: Transaction
@@ -27,6 +35,8 @@ export class ProducerSlotRepository {
     });
   }
 
+  // Recupera uno slot specifico per produttore/data/ora
+  // Esclude gli slot soft-deleted
   async findByProducerDateHour(
     producerProfileId: number,
     date: string,
@@ -38,15 +48,17 @@ export class ProducerSlotRepository {
         producerProfileId,
         date,
         hour,
-        deleted: false, // ❗ escludo soft deleted
+        deleted: false, // esclude soft deleted
       },
       transaction,
     });
   }
 
   // =====================================================
-  // DAY 6 – view richieste / stats (READ ONLY)
+  // View richieste / stats (READ ONLY)
   // =====================================================
+
+  // Recupera tutti gli slot di un produttore per una data ed un intervallo orario
   async findByProducerAndDate(
     producerProfileId: number,
     date: string,
@@ -57,7 +69,7 @@ export class ProducerSlotRepository {
       where: {
         producerProfileId,
         date,
-        deleted: false, // ❗ escludo soft deleted
+        deleted: false, // esclude soft deleted
         hour: {
           [Op.between]: [fromHour, toHour],
         },
@@ -67,10 +79,11 @@ export class ProducerSlotRepository {
   }
 
   // =====================================================
-  // DAY 7 – resolve richieste (WRITE + LOCK)
-  // Qui non filtro deleted perché resolve deve
-  // processare tutti gli slot programmati per la data
+  //Resolve richieste (WRITE + LOCK)
   // =====================================================
+
+  // Recupera gli slot da risolvere con lock pessimista
+  // Qui non viene filtrato deleted: il resolve deve processare tutto
   async findForResolveByProducerAndDate(
     producerProfileId: number,
     date: string,
@@ -87,6 +100,7 @@ export class ProducerSlotRepository {
     });
   }
 
+  // Recupera slot di un produttore in un intervallo di date
   async findByProducerAndRange(input: {
     producerProfileId: number;
     from?: Date;
@@ -115,10 +129,11 @@ export class ProducerSlotRepository {
     });
   }
 
+  // =============================
+  // Soft-delete per slot
+  // =============================
 
-  // =============================
-  // Soft-delete per slot resolve
-  // =============================
+  // Soft delete di uno slot specifico
   async softDelete(
     where: {
       producerProfileId: number;
@@ -139,31 +154,32 @@ export class ProducerSlotRepository {
       }
     );
   }
-  async findByProducerAndRangeForStats(input: {
-  producerProfileId: number;
-  from?: Date;
-  to?: Date;
-}): Promise<ProducerSlot[]> {
-  const from = normalize(input.from);
-  const to = normalize(input.to);
 
-  return this.model.findAll({
-    where: {
-      producerProfileId: input.producerProfileId,
-      ...(from || to
-        ? {
+  // Recupera slot per statistiche (NON filtra deleted)
+  async findByProducerAndRangeForStats(input: {
+    producerProfileId: number;
+    from?: Date;
+    to?: Date;
+  }): Promise<ProducerSlot[]> {
+    const from = normalize(input.from);
+    const to = normalize(input.to);
+
+    return this.model.findAll({
+      where: {
+        producerProfileId: input.producerProfileId,
+        ...(from || to
+          ? {
             date: {
               ...(from && { [Op.gte]: from }),
               ...(to && { [Op.lte]: to }),
             },
           }
-        : {}),
-    },
-    order: [
-      ["date", "ASC"],
-      ["hour", "ASC"],
-    ],
-  });
-}
-
+          : {}),
+      },
+      order: [
+        ["date", "ASC"],
+        ["hour", "ASC"],
+      ],
+    });
+  }
 }
