@@ -25,12 +25,16 @@ export async function getProducerRequestsOverview(params: {
     toHour = 23,
   } = params;
 
-  // Validazione dominio su range orario
+  // =========================
+  // VALIDAZIONE DOMINIO
+  // =========================
   if (fromHour < 0 || toHour > 23 || fromHour > toHour) {
     throw new Error("Intervallo ore non valido");
   }
 
-  // Recupera slot del produttore
+  // =========================
+  // RECUPERO SLOT PRODUTTORE
+  // =========================
   const slots = await ProducerSlot.findAll({
     where: {
       producerProfileId,
@@ -45,7 +49,10 @@ export async function getProducerRequestsOverview(params: {
   for (const slot of slots) {
     const capacity = Number(slot.capacityKwh);
 
-    // Somma richieste totali (PENDING + ALLOCATED)
+    // =========================
+    // SOMMA RICHIESTE (PENDING + ALLOCATED)
+    // Serve per il pre-resolve
+    // =========================
     const sumRequested = await Reservation.sum("requestedKwh", {
       where: {
         producerProfileId,
@@ -56,7 +63,9 @@ export async function getProducerRequestsOverview(params: {
     });
     const sumRequestedKwh = Number(sumRequested || 0);
 
-    // Somma allocazioni effettive
+    // =========================
+    // SOMMA ALLOCATA (POST-RESOLVE)
+    // =========================
     const sumAllocated = await Reservation.sum("allocatedKwh", {
       where: {
         producerProfileId,
@@ -67,12 +76,25 @@ export async function getProducerRequestsOverview(params: {
     });
     const sumAllocatedKwh = Number(sumAllocated || 0);
 
-    // Percentuale occupazione basata sulle richieste
+    // =========================
+    // CALCOLO % OCCUPAZIONE
+    // REGOLA:
+    // - se allocated > 0 → uso allocated
+    // - altrimenti → uso requested
+    // =========================
+    const usedKwh =
+      sumAllocatedKwh > 0
+        ? sumAllocatedKwh
+        : sumRequestedKwh;
+
     const occupancyPercent =
       capacity > 0
-        ? Number(((sumRequestedKwh / capacity) * 100).toFixed(2))
+        ? Number(((usedKwh / capacity) * 100).toFixed(2))
         : 0;
 
+    // =========================
+    // OUTPUT JSON
+    // =========================
     result.push({
       hour: slot.hour,
       capacityKwh: capacity,

@@ -2,78 +2,90 @@
  * AdminController
  *
  * Controller basato su classe (a differenza degli altri che esportano funzioni).
- * Espone operazioni tipicamente riservate ad admin:
+ * Espone operazioni riservate ad admin:
  * - creare producer
  * - creare consumer
- * - listare producer/consumer
- *
- * Nota: Gli errori con try/catch e res.status(400),
- * mentre negli altri controller delegate al middleware errorHandler.
- * Non è “sbagliato”, ma è incoerente.
+ * - listare producer
+ * - listare consumer
  */
 
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { AdminService } from "../services/AdminService";
 
 export class AdminController {
-  constructor(private adminService: AdminService) {}
+  constructor(private readonly adminService: AdminService) { }
 
   /**
    * POST /admin/producers
-   * Crea un producer con tutti i campi richiesti (energyType, co2, ecc.)
+   * Crea un producer con tutti i campi richiesti
    */
-  createProducer = async (req: Request, res: Response) => {
+  createProducer = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     try {
       await this.adminService.createProducer(req.body);
 
       return res.status(201).json({
         message: "Producer creato correttamente",
       });
-    } catch (err: any) {
-      return res.status(400).json({ error: err.message });
+    } catch (err) {
+      next(err);
     }
   };
 
- /**
+  /**
    * POST /admin/consumers
-   * Crea un consumer con credito iniziale.
+   * Crea un consumer con credito iniziale
    */
-  createConsumer = async (req: Request, res: Response) => {
+  createConsumer = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     try {
       await this.adminService.createConsumer(req.body);
 
       return res.status(201).json({
         message: "Consumer creato correttamente",
       });
-    } catch (err: any) {
-      return res.status(400).json({ error: err.message });
+    } catch (err) {
+      next(err);
     }
-  }
+  };
 
-    /**
+  /**
    * GET /admin/producers
-   * Lista producer.
+   * Lista tutti i producer
    */
-getProducers = async (req: Request, res: Response) => {
-  try {
-    const producers = await this.adminService.getAllProducers();
-    return res.status(200).json(producers);
-  } catch (err: any) {
-    return res.status(400).json({ error: err.message });
-  }
-};
+  getProducers = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const producers = await this.adminService.getAllProducers();
+      return res.status(200).json(producers);
+    } catch (err) {
+      next(err);
+    }
+  };
 
   /**
    * GET /admin/consumers
-   * Lista consumer.
+   * Lista tutti i consumer
    */
-getConsumers = async (req: Request, res: Response) => {
-  try {
-    const consumers = await this.adminService.getAllConsumers();
-    return res.status(200).json(consumers);
-  } catch (err: any) {
-    return res.status(400).json({ error: err.message });
-  }
-};  
-
+  getConsumers = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const consumers = await this.adminService.getAllConsumers();
+      return res.status(200).json(consumers);
+    } catch (err) {
+      next(err);
+    }
+  };
 }

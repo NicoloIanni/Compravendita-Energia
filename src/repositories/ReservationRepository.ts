@@ -104,50 +104,89 @@ export class ReservationRepository {
   // =========================
   // Consumer purchases / carbon
   // =========================
-
   // Recupera le prenotazioni allocate (o pending) di un consumer
   // Supporta filtri per produttore, tipo energia e intervallo date
   async findAllocatedByConsumer(filters: {
     consumerId: number;
     producerProfileId?: number;
     energyType?: string;
-    from?: Date;
-    to?: Date;
+    fromDate?: string;   // YYYY-MM-DD
+    toDate?: string;     // YYYY-MM-DD
+    fromHour?: number;   // 0–23
+    toHour?: number;     // 0–23
   }): Promise<Reservation[]> {
+    const {
+      consumerId,
+      producerProfileId,
+      energyType,
+      fromDate,
+      toDate,
+      fromHour,
+      toHour,
+    } = filters;
+
     return Reservation.findAll({
       where: {
-        consumerId: filters.consumerId,
+        // Prenotazioni del consumer
+        consumerId,
         status: {
           [Op.in]: ["ALLOCATED", "PENDING"],
         },
-        ...(filters.from || filters.to
+
+        /**
+         * Filtro per DATA
+         */
+        ...(fromDate || toDate
           ? {
             date: {
-              ...(filters.from && { [Op.gte]: filters.from }),
-              ...(filters.to && { [Op.lte]: filters.to }),
+              ...(fromDate && { [Op.gte]: fromDate }),
+              ...(toDate && { [Op.lte]: toDate }),
+            },
+          }
+          : {}),
+
+        /**
+         * Filtro per ORA
+         */
+        ...(fromHour !== undefined || toHour !== undefined
+          ? {
+            hour: {
+              ...(fromHour !== undefined && { [Op.gte]: fromHour }),
+              ...(toHour !== undefined && { [Op.lte]: toHour }),
             },
           }
           : {}),
       },
+
+      /**
+       * Join con ProducerProfile
+       * Serve per:
+       * - energyType
+       * - CO₂
+       * - filtro opzionale per producer
+       */
       include: [
         {
           model: ProducerProfile,
           attributes: ["id", "energyType", "co2_g_per_kwh"],
           where: {
-            ...(filters.energyType && { energyType: filters.energyType }),
-            ...(filters.producerProfileId && {
-              id: filters.producerProfileId,
-            }),
+            ...(energyType && { energyType }),
+            ...(producerProfileId && { id: producerProfileId }),
           },
           required: true,
         },
       ],
+
+      /**
+       * Ordinamento cronologico
+       */
       order: [
         ["date", "ASC"],
         ["hour", "ASC"],
       ],
     });
   }
+
 
 
   // Recupera le prenotazioni ALLOCATED di un produttore

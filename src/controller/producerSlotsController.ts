@@ -100,37 +100,79 @@ export const upsertSlots = async (req: Request, res: Response, next: NextFunctio
  * }
  *
  */
-export const updateSlot = async (req: Request, res: Response, next: NextFunction) => {
-  const producerProfileId = req.user?.profileId;
-  const { updates } = req.body;
-
-  if (!producerProfileId) {
-    return res.status(403).json({ error: "Producer non autorizzato" });
-  }
-
-  if (!Array.isArray(updates) || updates.length === 0) {
-    return res.status(400).json({
-      error: "Array di aggiornamenti vuoto o mancante",
-    });
-  }
-
-  let t: Transaction | null = null;
-
+export const updateSlot = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    t = await sequelize.transaction();
+    const producerProfileId = req.user?.profileId;
+
+    if (!producerProfileId) {
+      return res.status(403).json({ error: "Producer profile missing" });
+    }
+
+    const { updates } = req.body;
+
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({
+        error: "updates deve essere un array non vuoto",
+      });
+    }
+
+    // =========================
+    // Validazioni di dominio
+    // =========================
+    for (const u of updates) {
+      if (u.hour < 0 || u.hour > 23) {
+        return res.status(400).json({
+          error: "hour deve essere compreso tra 0 e 23",
+        });
+      }
+
+      if (u.capacityKwh !== undefined && u.capacityKwh <= 0) {
+        return res.status(400).json({
+          error: "capacityKwh deve essere > 0",
+        });
+      }
+
+      if (u.pricePerKwh !== undefined && u.pricePerKwh <= 0) {
+        return res.status(400).json({
+          error: "pricePerKwh deve essere > 0",
+        });
+      }
+    }
+
+    // =========================
+    // Update reale
+    // =========================
     const updatedSlots = await producerSlotService.updateSlots(
       producerProfileId,
-      updates,
-      { transaction: t }
+      updates
     );
 
-    await t.commit();
+    // ❗ FIX FONDAMENTALE
+    if (!updatedSlots || updatedSlots.length === 0) {
+      return res.status(400).json({
+        error: "Nessuno slot trovato da aggiornare",
+      });
+    }
+
+    // =========================
+    // Response pulita
+    // =========================
     return res.status(200).json({
       message: "Aggiornamenti completati",
-      updatedSlots,
+      updatedSlots: updatedSlots.map((s: any) => ({
+        id: s.id,
+        producerProfileId: s.producerProfileId,
+        date: s.date,
+        hour: s.hour,
+        capacityKwh: s.capacityKwh,
+        pricePerKwh: s.pricePerKwh,
+      })),
     });
   } catch (err) {
-    if (t) await t.rollback();
-    return next(err);
+    next(err);
   }
 };

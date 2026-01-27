@@ -30,19 +30,23 @@
         {
           "listen": "test",
           "script": {
-            "exec": ["pm.test('Health OK', () => pm.response.to.have.status(200));"]
+            "exec": [
+              "pm.test('Health OK', () => pm.response.to.have.status(200));"
+            ]
           }
         }
       ]
     },
-
-
-
     {
       "name": "Auth - Login Admin",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}"
@@ -67,8 +71,14 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Authorization", "value": "Bearer {{admin_token}}" },
-          { "key": "Content-Type", "value": "application/json" }
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
@@ -93,8 +103,14 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Authorization", "value": "Bearer {{admin_token}}" },
-          { "key": "Content-Type", "value": "application/json" }
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
@@ -118,7 +134,12 @@
       "name": "Admin - View Producers",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
         "url": "{{baseUrl}}/admin/producers"
       },
       "event": [
@@ -137,7 +158,12 @@
       "name": "Admin - View Consumers",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
         "url": "{{baseUrl}}/admin/consumers"
       },
       "event": [
@@ -152,13 +178,16 @@
         }
       ]
     },
-
-
     {
       "name": "Auth - Login Producer",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"email\": \"{{producer_email}}\",\n  \"password\": \"{{producer_password}}\"\n}"
@@ -183,8 +212,14 @@
       "request": {
         "method": "PATCH",
         "header": [
-          { "key": "Authorization", "value": "Bearer {{producer_token}}" },
-          { "key": "Content-Type", "value": "application/json" }
+          {
+            "key": "Authorization",
+            "value": "Bearer {{producer_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
@@ -196,60 +231,92 @@
         {
           "listen": "test",
           "script": {
-            "exec": ["pm.test('Slots upsert OK', () => pm.response.to.have.status(200));"]
+            "exec": [
+              "pm.test('Slots upsert OK', () => pm.response.to.have.status(200));"
+            ]
           }
         }
       ]
     },
     {
-  "name": "Producer - Update Slot",
-  "request": {
-    "method": "PATCH",
-    "header": [
-      {
-        "key": "Authorization",
-        "value": "Bearer {{producer_token}}",
-        "type": "text"
+      "name": "Producer - Update Slot",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{producer_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"updates\": [\n    {\n      \"date\": \"{{bookingDate}}\",\n      \"hour\": 10,\n      \"capacityKwh\": 50,\n      \"pricePerKwh\": 0.15\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/producers/me/updateslot",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "producers",
+            "me",
+            "updateslot"
+          ]
+        }
       },
-      {
-        "key": "Content-Type",
-        "value": "application/json",
-        "type": "text"
-      }
-    ],
-    "body": {
-      "mode": "raw",
-      "raw": "{\n  \"updates\": [\n    {\n      \"date\": \"{{bookingDate}}\",\n      \"hour\": 10,\n      \"capacityKwh\": 50,\n      \"pricePerKwh\": 0.15\n    }\n  ]\n}"
+      "response": []
     },
-    "url": {
-      "raw": "{{baseUrl}}/producers/me/updateslot",
-      "host": ["{{base_url}}"],
-      "path": ["producers", "me", "updateslot"]
-    }
-  },
-  "response": []
-},
     {
       "name": "Producer - View Requests",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{producer_token}}" }],
-    "url": {
-      "raw": "{{base_url}}/producers/me/requests?date={{date}}&fromHour={{fromHour}}&toHour={{toHour}}",
-      "host": ["{{base_url}}"],
-      "path": ["producers", "me", "requests"],
-      "query": [
-        { "key": "date", "value": "{{date}}" },
-        { "key": "fromHour", "value": "{{fromHour}}" },
-        { "key": "toHour", "value": "{{toHour}}" }
-      ]
-    }
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{producer_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/producers/me/requests?date={{date}}&fromHour={{fromHour}}&toHour={{toHour}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "producers",
+            "me",
+            "requests"
+          ],
+          "query": [
+            {
+              "key": "date",
+              "value": "{{date}}"
+            },
+            {
+              "key": "fromHour",
+              "value": "{{fromHour}}",
+              "disabled": false
+            },
+            {
+              "key": "toHour",
+              "value": "{{toHour}}",
+              "disabled": false
+            }
+          ]
+        }
       },
       "event": [
         {
           "listen": "test",
           "script": {
-            "exec": ["pm.test('Requests OK', () => pm.response.to.have.status(200));"]
+            "exec": [
+              "pm.test('Requests OK', () => pm.response.to.have.status(200));"
+            ]
           }
         }
       ]
@@ -258,7 +325,12 @@
       "name": "Producer - Resolve Requests",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Authorization", "value": "Bearer {{producer_token}}" }],
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{producer_token}}"
+          }
+        ],
         "url": "{{baseUrl}}/producers/me/requests/resolve?date={{bookingDate}}"
       },
       "event": [
@@ -278,7 +350,12 @@
       "name": "Producer - Earnings",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{producer_token}}" }],
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{producer_token}}"
+          }
+        ],
         "url": "{{baseUrl}}/producers/me/earnings"
       },
       "event": [
@@ -298,18 +375,45 @@
       "name": "Producer - Stats",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{producer_token}}" }],
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{producer_token}}"
+          }
+        ],
         "url": {
-           "raw": "{{base_url}}/producers/me/stats?fromDate={{statsFromDate}}&toDate={{statsToDate}}&fromHour={{statsFromHour}}&toHour={{statsToHour}}",
-           "host": ["{{base_url}}"],
-           "path": ["producers", "me", "stats"],
-           "query": [
-            { "key": "fromDate", "value": "{{statsFromDate}}", "disabled": false },
-            { "key": "toDate", "value": "{{statsToDate}}","disabled": false  },
-            { "key": "fromHour", "value": "{{statsFromHour}}","disabled": false  },
-            { "key": "toHour", "value": "{{statsToHour}}","disabled": false  }
-      ]
-    }
+          "raw": "{{base_url}}/producers/me/stats?fromDate={{fromDate}}&toDate={{toDate}}&fromHour={{fromHour}}&toHour={{toHour}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "producers",
+            "me",
+            "stats"
+          ],
+          "query": [
+            {
+              "key": "fromDate",
+              "value": "{{fromDate}}",
+              "disabled": true
+            },
+            {
+              "key": "toDate",
+              "value": "{{toDate}}",
+              "disabled": true
+            },
+            {
+              "key": "fromHour",
+              "value": "{{fromHour}}",
+              "disabled": true
+            },
+            {
+              "key": "toHour",
+              "value": "{{toHour}}",
+              "disabled": true
+            }
+          ]
+        }
       },
       "event": [
         {
@@ -324,49 +428,74 @@
       ]
     },
     {
-  "name": "Producer - Stats Chart (PNG)",
-  "request": {
-    "method": "GET",
-    "header": [
-      {
-        "key": "Authorization",
-        "value": "Bearer {{producer_token}}"
-      }
-    ],
-    "url": {
-      "raw": "{{base_url}}/producers/me/stats/chart?fromDate={{statsFromDate}}&toDate={{statsToDate}}&fromHour={{statsFromHour}}&toHour={{statsToHour}}",
-      "host": ["{{base_url}}"],
-      "path": ["producers", "me", "stats", "chart"],
-      "query": [
-        { "key": "fromDate", "value": "{{statsFromDate}}","disabled":false },
-        { "key": "toDate", "value": "{{statsToDate}}" ,"disabled":false},
-        { "key": "fromHour", "value": "{{statsFromHour}}", "disabled": false },
-        { "key": "toHour", "value": "{{statsToHour}}", "disabled": false }
+      "name": "Producer - Stats Chart (PNG)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{producer_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/producers/me/stats/chart?fromDate={{statsFromDate}}&toDate={{statsToDate}}&fromHour={{statsFromHour}}&toHour={{statsToHour}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "producers",
+            "me",
+            "stats",
+            "chart"
+          ],
+          "query": [
+            {
+              "key": "fromDate",
+              "value": "{{statsFromDate}}",
+              "disabled": true
+            },
+            {
+              "key": "toDate",
+              "value": "{{statsToDate}}",
+              "disabled": true
+            },
+            {
+              "key": "fromHour",
+              "value": "{{statsFromHour}}",
+              "disabled": true
+            },
+            {
+              "key": "toHour",
+              "value": "{{statsToHour}}",
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Stats chart OK (PNG)', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.headers.get('Content-Type')).to.include('image/png');",
+              "});"
+            ]
+          }
+        }
       ]
-    }
-  },
-  "event": [
-    {
-      "listen": "test",
-      "script": {
-        "exec": [
-          "pm.test('Stats chart OK (PNG)', () => {",
-          "  pm.response.to.have.status(200);",
-          "  pm.expect(pm.response.headers.get('Content-Type')).to.include('image/png');",
-          "});"
-        ]
-      }
-    }
-  ]
-},
-
-
-
+    },
     {
       "name": "Auth - Login Consumer",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"email\": \"{{consumer_email}}\",\n  \"password\": \"{{consumer_password}}\"\n}"
@@ -391,8 +520,14 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Authorization", "value": "Bearer {{consumer_token}}" },
-          { "key": "Content-Type", "value": "application/json" }
+          {
+            "key": "Authorization",
+            "value": "Bearer {{consumer_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
@@ -419,8 +554,14 @@
       "request": {
         "method": "PATCH",
         "header": [
-          { "key": "Authorization", "value": "Bearer {{consumer_token}}" },
-          { "key": "Content-Type", "value": "application/json" }
+          {
+            "key": "Authorization",
+            "value": "Bearer {{consumer_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
@@ -432,50 +573,90 @@
         {
           "listen": "test",
           "script": {
-            "exec": ["pm.test('Update/cancel OK', () => pm.response.to.have.status(200));"]
+            "exec": [
+              "pm.test('Update/cancel OK', () => pm.response.to.have.status(200));"
+            ]
           }
         }
       ]
     },
     {
-  "name": "Consumer - Get All Producers With Slots",
-  "request": {
-    "method": "GET",
-    "header": [
-      {
-        "key": "Authorization",
-        "value": "Bearer {{consumer_token}}",
-        "type": "text"
-      }
-    ],
-    "url": {
-      "raw": "{{baseUrl}}/consumers/me/producers",
-      "host": [
-        "{{base_url}}"
-      ],
-      "path": ["consumers",
-        "me",
-        "producers"
-      ]
-    }
-  },
-  "response": []
-},
+      "name": "Consumer - Get All Producers With Slots",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{consumer_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/consumers/me/producers",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "consumers",
+            "me",
+            "producers"
+          ]
+        }
+      },
+      "response": []
+    },
     {
       "name": "Consumer - Purchases",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{consumer_token}}" }],
-        "url":{
-          "raw": "{{base_url}}/consumers/me/purchases?producerId={{producerId}}&energyType={{energyType}}&from={{fromDatetime}}&to={{toDatetime}}",
-          "host": ["{{base_url}}"],
-          "path": ["consumers", "me", "purchases"],
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{consumer_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/consumers/me/purchases?producerId={{producerId}}&energyType={{energyType}}&fromDate={{fromDate}}&toDate={{toDate}}&fromHour={{fromHour}}&toHour={{toHour}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "consumers",
+            "me",
+            "purchases"
+          ],
           "query": [
-        { "key": "producerId", "value": "{{producerId}}","disabled": false},
-        { "key": "energyType", "value": "{{energyType}}","disabled": false },
-        { "key": "from", "value": "{{fromDatetime}}","disabled": false },
-        { "key": "to", "value": "{{toDatetime}}","disabled": false }
-      ]
+            {
+              "key": "producerId",
+              "value": "{{producerId}}",
+              "disabled": true
+            },
+            {
+              "key": "energyType",
+              "value": "{{energyType}}",
+              "disabled": true
+            },
+            {
+              "key": "fromDate",
+              "value": "{{fromDate}}",
+              "disabled": true
+            },
+            {
+              "key": "toDate",
+              "value": "{{toDate}}",
+              "disabled": true
+            },
+            {
+              "key": "fromHour",
+              "value": "{{fromHour}}",
+              "disabled": true
+            },
+            {
+              "key": "toHour",
+              "value": "{{toHour}}",
+              "disabled": true
+            }
+          ]
         }
       },
       "event": [
@@ -494,7 +675,12 @@
       "name": "Consumer - Carbon Footprint",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{consumer_token}}" }],
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{consumer_token}}"
+          }
+        ],
         "url": "{{baseUrl}}/consumers/me/carbon"
       },
       "event": [
@@ -510,21 +696,25 @@
         }
       ]
     },
-
-
-
     {
       "name": "Protected - Dummy Ping",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
         "url": "{{baseUrl}}/protected/ping"
       },
       "event": [
         {
           "listen": "test",
           "script": {
-            "exec": ["pm.test('Protected ping OK', () => pm.response.to.have.status(200));"]
+            "exec": [
+              "pm.test('Protected ping OK', () => pm.response.to.have.status(200));"
+            ]
           }
         }
       ]

@@ -20,7 +20,7 @@ export class ConsumerReservationController {
   constructor(
     private readonly reservationService: ReservationService,
     private readonly consumerQueryService: ConsumerQueryService
-  ) {}
+  ) { }
 
   /**
    * POST /consumers/me/reservations
@@ -44,9 +44,10 @@ export class ConsumerReservationController {
       // ID consumer preso dal JWT (req.user è popolato dal middleware auth)
       const consumerId = req.user!.userId;
 
-      // payload richiesto
+      // Payload richiesto dal client
       const { producerProfileId, date, hour, requestedKwh } = req.body;
 
+      // Chiamata al service
       const reservation = await this.reservationService.createReservation({
         consumerId,
         producerProfileId,
@@ -55,11 +56,22 @@ export class ConsumerReservationController {
         requestedKwh,
       });
 
-      return res.status(201).json(reservation);
+      return res.status(201).json({
+        id: reservation.id,
+        consumerId: reservation.consumerId,
+        producerProfileId: reservation.producerProfileId,
+        date: reservation.date,
+        hour: reservation.hour,
+        requestedKwh: reservation.requestedKwh,
+        allocatedKwh: reservation.allocatedKwh,
+        status: reservation.status,
+        totalCostCharged: reservation.totalCostCharged,
+      });
     } catch (err) {
       next(err);
     }
   };
+
 
   /**
    * PATCH /consumers/me/reservations/:id
@@ -116,35 +128,92 @@ export class ConsumerReservationController {
    * Ritorna lo storico acquisti del consumer con filtri opzionali:
    * - producerId (in realtà nel service è trattato come producerProfileId)
    * - energyType
-   * - intervallo temporale from/to (datetime parse con new Date)
+   * - intervallo temporale from/to
    *
    * Output atteso: lista acquisti (dipende dal service).
    */
   getMyPurchases = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const consumerId = req.user!.userId;
-      const { producerId, energyType, from, to } = req.query;
 
-      // parse date (from/to includono anche ora, es: 2026-01-07 10:00:00)
-      const fromDate = from ? new Date(from as string) : undefined;
-      const toDate = to ? new Date(to as string) : undefined;
+      /**
+       * Filtri supportati:
+       * - producerId
+       * - energyType
+       * - fromDate / toDate  → (YYYY-MM-DD)
+       * - fromHour / toHour  → (0–23)
+       */
+      const {
+        producerId,
+        energyType,
+        fromDate,
+        toDate,
+        fromHour,
+        toHour,
+      } = req.query;
 
-      // validazione formato date
-      if ((from && isNaN(fromDate!.getTime())) || (to && isNaN(toDate!.getTime()))) {
-        return res.status(400).json({ error: "INVALID_DATE_FORMAT" });
+      // =========================
+      // Parse date
+      // =========================
+      let fromDt: string | undefined;
+      let toDt: string | undefined;
+
+      if (fromDate && typeof fromDate === "string") {
+        // semplice validazione formato YYYY-MM-DD
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
+          return res.status(400).json({ error: "INVALID_fromDate_FORMAT" });
+        }
+        fromDt = fromDate;
       }
 
-      // range coerente
-      if (fromDate && toDate && fromDate > toDate) {
-        return res.status(400).json({ error: "from must be <= to" });
+      if (toDate && typeof toDate === "string") {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+          return res.status(400).json({ error: "INVALID_toDate_FORMAT" });
+        }
+        toDt = toDate;
       }
 
+      // Range date coerente
+      if (fromDt && toDt && fromDt > toDt) {
+        return res.status(400).json({ error: "fromDate must be <= toDate" });
+      }
+
+      // =========================
+      // Parse hour
+      // =========================
+      let fromHr: number | undefined;
+      let toHr: number | undefined;
+
+      if (fromHour !== undefined) {
+        fromHr = Number(fromHour);
+        if (Number.isNaN(fromHr) || fromHr < 0 || fromHr > 23) {
+          return res.status(400).json({ error: "INVALID_fromHour_VALUE" });
+        }
+      }
+
+      if (toHour !== undefined) {
+        toHr = Number(toHour);
+        if (Number.isNaN(toHr) || toHr < 0 || toHr > 23) {
+          return res.status(400).json({ error: "INVALID_toHour_VALUE" });
+        }
+      }
+
+      // Range orario coerente
+      if (fromHr !== undefined && toHr !== undefined && fromHr > toHr) {
+        return res.status(400).json({ error: "fromHour must be <= toHour" });
+      }
+
+      // =========================
+      // Query service
+      // =========================
       const result = await this.consumerQueryService.getPurchases({
         consumerId,
         producerProfileId: producerId ? Number(producerId) : undefined,
         energyType: energyType as string | undefined,
-        from: fromDate,
-        to: toDate,
+        fromDate: fromDt,
+        toDate: toDt,
+        fromHour: fromHr,
+        toHour: toHr,
       });
 
       return res.status(200).json(result);

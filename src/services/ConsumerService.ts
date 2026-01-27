@@ -5,7 +5,7 @@ import { Op } from "sequelize";
 // Service READ-ONLY per consumer
 // Separato dal ReservationService per non mescolare write e query
 export class ConsumerQueryService {
-  constructor(private reservationRepo: ReservationRepository) {}
+  constructor(private reservationRepo: ReservationRepository) { }
 
   /* =========================
    * PURCHASES 
@@ -14,22 +14,38 @@ export class ConsumerQueryService {
     consumerId: number;
     producerProfileId?: number;
     energyType?: string;
-    from?: Date;
-    to?: Date;
+    fromDate?: string;   // YYYY-MM-DD
+    toDate?: string;     // YYYY-MM-DD
+    fromHour?: number;   // 0–23
+    toHour?: number;     // 0–23
   }) {
-    const { consumerId, producerProfileId, energyType, from, to } = input;
+    const {
+      consumerId,
+      producerProfileId,
+      energyType,
+      fromDate,
+      toDate,
+      fromHour,
+      toHour,
+    } = input;
 
-    // Si delega completamente il filtering al repository
+    /**
+     * Si delega completamente il filtering al repository.
+     */
     const reservations: any[] =
       await this.reservationRepo.findAllocatedByConsumer({
         consumerId,
         producerProfileId,
         energyType,
-        from,
-        to,
+        fromDate,
+        toDate,
+        fromHour,
+        toHour,
       });
 
-    // Mapping DTO + calcolo CO₂ per acquisto
+    /**
+     * Mapping DTO + calcolo CO₂ per singolo acquisto
+     */
     return reservations.map((r) => {
       const co2_g =
         Number(r.allocatedKwh.toFixed(3)) *
@@ -42,13 +58,18 @@ export class ConsumerQueryService {
         allocatedKwh: Number(r.allocatedKwh.toFixed(3)),
         totalCost: Number(r.totalCostCharged.toFixed(2)),
         status: r.status,
+
         producerProfileId: r.producerProfile.id,
         energyType: r.producerProfile.energyType,
-        co2_g_per_kwh: Number(r.producerProfile.co2_g_per_kwh.toFixed(2)),
+
+        co2_g_per_kwh: Number(
+          r.producerProfile.co2_g_per_kwh.toFixed(2)
+        ),
         co2_g: Number(co2_g.toFixed(2)),
       };
     });
   }
+
 
   /* =========================
    * CARBON FOOTPRINT 

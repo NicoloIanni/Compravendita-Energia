@@ -158,12 +158,13 @@ export const getMyStats = async (
 
 
 /**
- * GET /producers/me/stats/chart
+ * GET / producers / me / stats / chart
  *
- * Fornisce statitsiche in fotmato PNG (con grafico a barre e linea)
- * Query param aggiuntivo:
- * - format=json | png
- */
+ * Fornisce statistiche in formato PNG(con grafico a barre e linea)
+ * Query param:
+ * - fromDate, toDate
+* - fromHour, toHour
+*/
 export const getMyStatsChart = async (
   req: Request,
   res: Response,
@@ -179,6 +180,9 @@ export const getMyStatsChart = async (
     let fromHr: number | undefined;
     let toHr: number | undefined;
 
+    // -----------------------
+    // Parsing date
+    // -----------------------
     if (fromDate && typeof fromDate === "string") {
       fromDt = new Date(fromDate);
       if (isNaN(fromDt.getTime())) {
@@ -193,24 +197,31 @@ export const getMyStatsChart = async (
       }
     }
 
-    if (fromHr !== undefined) {
+    // -----------------------
+    // Parsing hour
+    // -----------------------
+    if (fromHour !== undefined) {
       fromHr = Number(fromHour);
       if (Number.isNaN(fromHr) || fromHr < 0 || fromHr > 23) {
         return res.status(400).json({ error: "INVALID_fromHour_VALUE" });
       }
     }
 
-    if (toHr !== undefined) {
+    if (toHour !== undefined) {
       toHr = Number(toHour);
       if (Number.isNaN(toHr) || toHr < 0 || toHr > 23) {
         return res.status(400).json({ error: "INVALID_toHour_VALUE" });
       }
     }
 
+    // Validazione range date
     if (fromDt && toDt && fromDt > toDt) {
       return res.status(400).json({ error: "fromDate must be <= toDate" });
     }
 
+    // -----------------------
+    // Recupero statistiche
+    // -----------------------
     const stats = await producerStatsService.getStats({
       producerProfileId,
       fromDate: fromDt,
@@ -219,7 +230,9 @@ export const getMyStatsChart = async (
       toHour: toHr,
     });
 
-    // costruzione labels e values
+    // -----------------------
+    // Costruzione dati chart
+    // -----------------------
     const labels: string[] = [];
     const minValues: number[] = [];
     const avgValues: number[] = [];
@@ -288,6 +301,3 @@ export const getMyStatsChart = async (
     next(err);
   }
 };
-
-
-
