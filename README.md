@@ -22,7 +22,7 @@
 L’obiettivo è realizzare un’applicazione che:
 
 - Gestisce utenti con ruoli (**admin / producer / consumer**)
-- Consente ai produttori di definire per ogni ora **capacità (kWh)** e **prezzo (credit/kWh)**
+- Consente ai produttori di definire per ogni ora **capacità (kWh)** e **prezzo (price/kWh)**
 - Consente ai consumatori di creare **prenotazioni di energia**
 - Gestisce il **credito** dei consumatori con addebiti atomici (transaction DB)
 - Gestisce concorrenza e consistenza in presenza di richieste simultanee
@@ -91,6 +91,7 @@ Il sistema calcola CO₂ come:
     - mancano almeno **24h** all’inizio dello slot (`SLOT_NOT_BOOKABLE_24H`)
     - il consumer ha credito sufficiente (`INSUFFICIENT_CREDIT`)
     - `requestedKwh` è valido (minimo `>= 0.1`)
+    - Ogni chiamata crea **una singola prenotazione** riferita a uno specifico slot (date+hour).
   - Se la prenotazione va a buon fine:
     - viene scalato il credito in modo consistente
     - la prenotazione viene salvata in stato **`PENDING`**
@@ -189,39 +190,37 @@ Di seguito un riepilogo delle rotte principali implementate nel progetto:
 
 ### Comportamento dei controller
 
-I controller relativi alle rotte sopra seguono queste regole:
+I controller dell’applicazione hanno il solo compito di gestire il livello HTTP
+e **non implementano logica di dominio**.  
+Seguono tutti le stesse linee guida architetturali, indipendentemente dal ruolo
+(admin / producer / consumer).
 
-- **Autenticazione JWT obbligatoria (rotte protette)**
-  - Il token deve essere inviato nell’header `Authorization: Bearer <token>`
-  - Se manca o è invalido → `401 Unauthorized`
+#### Responsabilità comuni
 
-- **Autorizzazione per ruolo**
-  - Solo utenti con `role: "admin"` possono creare/listare producer e consumer
-  - Solo utenti con `role: "producer"` possono gestire slot/requests/stats/earnings
-  - Solo utenti con `role: "consumer"` possono creare e modificare prenotazioni e consultare acquisti/carbon
-  - Caso negativo → `403 Forbidden`
+Tutti i controller rispettano le seguenti regole:
 
-- **Gestione slot producer: due operazioni distinte**
-  - `PATCH /producers/me/slots`
-    - crea o fa upsert batch degli slot del producer (capacity e/o price per data e ora)
-    - se lo slot non esiste viene creato, se esiste viene aggiornato
-  - `PATCH /producers/me/updateslot`
-    - aggiorna batch di slot **già esistenti**
-    - se lo slot non esiste → errore (non crea slot nuovi)
+- **nessuna query diretta al database**  
+  L’accesso ai dati è demandato esclusivamente ai Repository tramite i Service.
 
-- **Validazione dei dati (slot producer)**
-  - Per ogni elemento passato nel body vengono verificati:
-    - `date` presente e formato valido (`YYYY-MM-DD`)
-    - `hour` tra 0 e 23
-    - almeno uno tra `capacityKwh` e `pricePerKwh` deve essere presente
-    - se presenti:
-      - `capacityKwh` >= 0
-      - `pricePerKwh` >= 0
-  - In caso di input non valido → `400 Bad Request` con messaggio esplicativo
+- **nessuna logica di dominio complessa**  
+  Regole come vincolo 24h, credito, allocazioni, rimborsi o statistiche
+  non sono implementate nei controller.
 
-- **Transazioni atomiche (slot producer)**
-  - Gli aggiornamenti batch vengono eseguiti in una transaction
-  - Se anche un singolo elemento è invalido, **nessuna modifica viene applicata**
+- **validazioni tecniche minime**
+  - presenza dei campi obbligatori
+  - formato di base dei parametri (`date`, `hour`, numeri non negativi)
+  - correttezza sintattica delle query
+
+- **delega completa al Service Layer**
+  Ogni controller invoca uno o più Service che incapsulano
+  la logica applicativa e coordinano i Repository.
+
+- **gestione degli errori centralizzata**
+  I controller sollevano errori applicativi che vengono intercettati
+  da un middleware Express dedicato, garantendo risposte HTTP coerenti.
+
+Questo approccio mantiene i controller **sottili, leggibili e facilmente testabili**,
+evitando duplicazioni di logica e favorendo una chiara separazione delle responsabilità.
 
 ---
 
@@ -325,7 +324,7 @@ In particolare, il test assicura che:
   "producerProfileId": 1,
   "date": "2026-01-20",
   "hour": 10,
-  "requestedKwh": 5,
+  "requestedKwh": 5
 }
 ```
 
@@ -643,7 +642,7 @@ Il Service Layer è necessario per centralizzare queste regole ed evitare logica
 Esempi nel progetto:
 - `ProducerSlotService` (gestione capacità e prezzo)
 - `ReservationService` (creazione, modifica e cancellazione prenotazioni)
-- `SettlementService` (allocazione, taglio proporzionale e rimborsi)
+- `ResolveService` (allocazione, taglio proporzionale e rimborsi)
 
 ### Middleware Pattern
 
