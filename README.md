@@ -145,6 +145,12 @@ Il sistema calcola CO₂ come:
     - **JSON**: `GET /producers/me/stats?from=YYYY-MM-DD&to=YYYY-MM-DD`
     - **Grafico (Chart.js)**: `GET /producers/me/stats/chart?from=YYYY-MM-DD&to=YYYY-MM-DD`
 
+- **Gestione del fuso orario**
+  - Il sistema utilizza **UTC** come riferimento temporale per tutta la logica applicativa.
+  - Tutti i confronti temporali (vincolo 24h, slot orari, resolve) sono effettuati assumendo lo stesso fuso UTC.
+  - Nei log e negli output locali i timestamp possono apparire con una differenza di **+1 ora**
+    rispetto all’orario visualizzato sul sistema dell’utente, a causa del fuso orario locale.
+
 ---
 
 ## Stack
@@ -363,7 +369,7 @@ Questo test verifica che il sistema rifiuti correttamente una prenotazione con u
 Expected Response: HTTP/1.1 400 Bad Request
 ```json
 [
-   "error": "INVALID_KWH"
+   "error": "La quantità minima prenotabile è di 0.1 Kwh"
 ]
 ```
 
@@ -520,11 +526,14 @@ Questo conferma che:
 - i casi negativi (`400/401`) sono gestiti correttamente;
 - l’endpoint protetto risponde solo con `Authorization: Bearer <token>` valido.
 
-
 ### Troubleshooting (le 3 cause tipiche)
 1. **401 su /auth/login** → credenziali non valide (variabili Postman `admin_email`, `admin_password`) oppure utenti di test non inizializzati tramite seed.
 2. **401 su /protected/ping** → token non salvato (login fallito) o `JWT_SECRET` diverso tra generazione e verify.
 3. **404 sulle route** → avete montato male i router o avete messo l’`errorHandler` prima delle route (in Express l’ordine conta).
+
+> **Nota**: Prima di eseguire Newman è necessario avviare l’ambiente su un **database pulito**.  
+> In caso contrario, i test di integrazione potrebbero fallire a causa di **dati persistenti**
+> (prenotazioni, slot o utenti già presenti).
 
 ---
 
