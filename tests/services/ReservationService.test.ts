@@ -174,7 +174,7 @@ describe("ReservationService", () => {
         requestedKwh: 1,
       })
     ).rejects.toMatchObject({
-      message: "ALREADY_BOOKED_SAME_HOUR",
+      message: "Hai già una prenotazione per questa fascia oraria con un altro produttore",
     });
   });
 
@@ -192,7 +192,7 @@ describe("ReservationService", () => {
         requestedKwh: 0.05,
       })
     ).rejects.toMatchObject({
-      message: "INVALID_KWH",
+      message: "La quantità minima prenotabile è di 0.1 kWh",
     });
   });
 
@@ -212,7 +212,7 @@ describe("ReservationService", () => {
         requestedKwh: 1,
       })
     ).rejects.toMatchObject({
-      message: "SLOT_NOT_BOOKABLE_24H",
+      message: "Lo slot può essere prenotato solo con almeno 24 ore di anticipo",
     });
   });
 

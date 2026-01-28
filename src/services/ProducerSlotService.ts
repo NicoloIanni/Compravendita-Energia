@@ -1,6 +1,7 @@
 import type { Transaction } from "sequelize";
 import { ProducerProfileRepository } from "../repositories/ProducerProfileRepository";
 import { ProducerSlotRepository } from "../repositories/ProducerSlotRepository";
+import { addHours, isAfter, startOfHour } from "date-fns";
 
 /**
  * Input per la creazione/upsert di uno slot
@@ -157,10 +158,27 @@ export class ProducerSlotService {
       throw err;
     }
 
+    const now = new Date();
+    const limit = addHours(now, 24);
+
     // Costruzione payload da upsertare
     const toUpsert = slots.map((slot) => {
       // Validazione singolo slot
       this.validateSlot(slot);
+
+
+      // =========================
+      // REGOLA 24 ORE
+      // =========================
+      const slotStart = startOfHour(
+      new Date(`${date}T${String(slot.hour).padStart(2, "0")}:00:00`)
+      );
+
+      if (!isAfter(slotStart, limit)) {
+         throw new Error(
+            "Non è possibile creare slot con meno di 24 ore di anticipo"
+         );
+      }
 
       return {
         producerProfileId,
@@ -207,6 +225,24 @@ export class ProducerSlotService {
         const err = new Error("Ogni update deve includere date e hour");
         (err as any).status = 400;
         throw err;
+      }
+
+      // =========================
+      // REGOLA 24 ORE
+      // =========================
+      const slotStart = startOfHour(
+        new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`)
+      );
+
+      const now = new Date();
+      const limit = addHours(now, 24);
+
+      if (!isAfter(slotStart, limit)) {
+        const err = new Error(
+         "Non è possibile modificare slot con meno di 24 ore di anticipo"
+       );
+       (err as any).status = 400;
+       throw err;
       }
 
       // Validazione valori opzionali

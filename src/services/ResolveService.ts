@@ -78,7 +78,7 @@ export class SettlementService {
           // Allocazione mancante = errore
           if (allocatedKwh === undefined) {
             throw new Error(
-              `Allocation missing for reservation ${reservation.id}`
+              "Errore interno durante l’elaborazione delle prenotazioni"
             );
           }
 

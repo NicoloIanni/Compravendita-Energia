@@ -37,7 +37,7 @@ export const upsertSlots = async (req: Request, res: Response, next: NextFunctio
   // Validazione base payload
   if (!date || !Array.isArray(slots)) {
     return res.status(400).json({
-      error: "Payload must include date and slots array",
+      error: "Il payload deve includere una data e una lista di slot",
     });
   }
 
@@ -49,14 +49,14 @@ export const upsertSlots = async (req: Request, res: Response, next: NextFunctio
       typeof slot.pricePerKwh !== "number"
     ) {
       return res.status(400).json({
-        error: "Each slot must include hour, capacityKwh and pricePerKwh",
+        error: "Ogni slot deve includere hour, capacityKwh e pricePerKwh come valori numerici",
       });
     }
 
 
     if (slot.capacityKwh <= 0 || slot.pricePerKwh <= 0) {
       return res.status(400).json({
-        error: "Invalid capacityKwh or pricePerKwh",
+        error: "capacityKwh e pricePerKwh devono essere valori maggiori di zero",
       });
     }
   }
@@ -67,7 +67,7 @@ export const upsertSlots = async (req: Request, res: Response, next: NextFunctio
     // ProducerProfileId dal JWT
     const producerProfileId = req.user?.profileId;
     if (!producerProfileId) {
-      return res.status(403).json({ error: "Producer profile missing" });
+      return res.status(403).json({ error: "Profilo produttore non associato all’utente" });
     }
 
     // Transaction per evitare problemi concorrenza / aggiornamenti parziali
@@ -78,7 +78,7 @@ export const upsertSlots = async (req: Request, res: Response, next: NextFunctio
     });
 
     await t.commit();
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ message: "Operazione completata con successo" });
   } catch (err) {
     if (t) await t.rollback();
     next(err);
@@ -109,7 +109,7 @@ export const updateSlot = async (
     const producerProfileId = req.user?.profileId;
 
     if (!producerProfileId) {
-      return res.status(403).json({ error: "Producer profile missing" });
+      return res.status(403).json({ error: "Profilo produttore non associato all’utente" });
     }
 
     const { updates } = req.body;
@@ -150,8 +150,6 @@ export const updateSlot = async (
       producerProfileId,
       updates
     );
-
-    // ❗ FIX FONDAMENTALE
     if (!updatedSlots || updatedSlots.length === 0) {
       return res.status(400).json({
         error: "Nessuno slot trovato da aggiornare",

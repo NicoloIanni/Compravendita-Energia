@@ -5,6 +5,8 @@ import app from "../src/app";
 import User from "../src/models/User";
 import ProducerProfile from "../src/models/ProducerProfile";
 import ProducerSlot from "../src/models/ProducerSlot";
+import { addHours, format } from "date-fns";
+
 
 // aumento timeout perché il test usa DB reale
 jest.setTimeout(20000);
@@ -20,6 +22,9 @@ describe("Producer slot upsert (capacity + price mandatory)", () => {
   let producerUser: User;
   let producerProfile: ProducerProfile;
   let producerToken: string;
+
+  const futureDate = format(addHours(new Date(), 48), "yyyy-MM-dd");
+
 
   beforeAll(async () => {
     /* =========================
@@ -71,7 +76,7 @@ describe("Producer slot upsert (capacity + price mandatory)", () => {
       .patch("/producers/me/slots")
       .set("Authorization", `Bearer ${producerToken}`)
       .send({
-        date: "2026-01-22",
+        date: futureDate,
         slots: [
           { hour: 10, capacityKwh: 10, pricePerKwh: 2 },
           { hour: 11, capacityKwh: 8, pricePerKwh: 1.5 },
@@ -101,7 +106,7 @@ describe("Producer slot upsert (capacity + price mandatory)", () => {
       .patch("/producers/me/slots")
       .set("Authorization", `Bearer ${producerToken}`)
       .send({
-        date: "2026-01-22",
+        date: futureDate,
         slots: [
           { hour: 10, capacityKwh: 20, pricePerKwh: 3 },
         ],
@@ -114,7 +119,7 @@ describe("Producer slot upsert (capacity + price mandatory)", () => {
     const slot = await ProducerSlot.findOne({
       where: {
         producerProfileId: producerProfile.id,
-        date: "2026-01-22",
+        date: futureDate,
         hour: 10,
       },
     });
@@ -138,7 +143,7 @@ describe("Producer slot upsert (capacity + price mandatory)", () => {
       .patch("/producers/me/slots")
       .set("Authorization", `Bearer ${producerToken}`)
       .send({
-        date: "2026-01-22",
+        date: futureDate,
         slots: [
           { hour: 12, capacityKwh: 5 }, // price mancante
         ],

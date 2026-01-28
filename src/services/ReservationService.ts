@@ -90,12 +90,12 @@ export class ReservationService {
     // 1) Validazioni di dominio: quantità minima 0.1 kWh
     if (requestedKwh < 0.1) {
       // Messaggio come codice errore (viene gestito dall’error handler)
-      throw new DomainError("INVALID_KWH");
+      throw new DomainError("La quantità minima prenotabile è di 0.1 kWh");
     }
 
     // Validazione dominio: ora nello slot 0–23
     if (hour < 0 || hour > 23) {
-      throw new DomainError("INVALID_HOUR");
+      throw new DomainError("L’ora deve essere compresa tra 0 e 23");
     }
 
     // Calcolo inizio slot (arrotondato all’inizio dell’ora)
@@ -108,7 +108,7 @@ export class ReservationService {
 
     // Se slotStart non è dopo limit => non prenotabile
     if (!isAfter(slotStart, limit)) {
-      throw new DomainError("SLOT_NOT_BOOKABLE_24H");
+      throw new DomainError("Lo slot può essere prenotato solo con almeno 24 ore di anticipo");
     }
 
     // Tutto il resto deve essere atomico (credito + reservation)
@@ -118,7 +118,7 @@ export class ReservationService {
       // =========================
       const consumer = await this.userRepository.findById(consumerId, tx);
       if (!consumer) {
-        throw new DomainError("CONSUMER_NOT_FOUND");
+        throw new DomainError("Consumatore non trovato");
       }
 
       // =========================
@@ -134,12 +134,12 @@ export class ReservationService {
 
       // Slot non esiste
       if (!slot) {
-        throw new DomainError("SLOT_NOT_FOUND");
+        throw new DomainError("Slot non trovato");
       }
 
       // Slot soft-deleted => non prenotabile
       if ((slot as any).deleted) {
-        throw new DomainError("SLOT_NOT_BOOKABLE");
+        throw new DomainError("Lo slot selezionato non è più disponibile per la prenotazione");
       }
 
   
@@ -158,7 +158,7 @@ export class ReservationService {
 
       if (conflict) {
         // regola: non puoi prenotare due produttori nella stessa ora
-        throw new DomainError("ALREADY_BOOKED_SAME_HOUR");
+        throw new DomainError("Hai già una prenotazione per questa fascia oraria con un altro produttore");
       }
 
 
@@ -184,7 +184,7 @@ export class ReservationService {
 
         // Controllo credito sufficiente
         if (consumer.credit < addedCost) {
-          throw new DomainError("INSUFFICIENT_CREDIT");
+          throw new DomainError("Credito insufficiente");
         }
 
         // Scala credito consumer
@@ -207,7 +207,7 @@ export class ReservationService {
 
       // Verifica credito sufficiente
       if (consumer.credit < totalCost) {
-        throw new DomainError("INSUFFICIENT_CREDIT");
+        throw new DomainError("Credito insufficiente");
       }
 
       // Creazione reservation PENDING, allocatedKwh=0 (verrà risolta dopo)
@@ -245,7 +245,7 @@ export class ReservationService {
 
     // Validazione input: quantità non negativa
     if (requestedKwh < 0) {
-      throw new DomainError("INVALID_KWH");
+      throw new DomainError("La quantità di energia richiesta non può essere negativa");
     }
 
     return sequelize.transaction(async (tx: Transaction) => {
@@ -262,17 +262,17 @@ export class ReservationService {
         );
 
       if (!reservation) {
-        throw new DomainError("RESERVATION_NOT_FOUND");
+        throw new DomainError("Prenotazione non trovata");
       }
 
       // Sicurezza: solo il proprietario può modificare
       if (reservation.consumerId !== consumerId) {
-        throw new DomainError("FORBIDDEN");
+        throw new DomainError("Non hai i permessi per modificare questa prenotazione");
       }
 
       // Solo PENDING è modificabile (ALLOCATED è già finalizzata)
       if (reservation.status !== "PENDING") {
-        throw new DomainError("RESERVATION_NOT_EDITABLE");
+        throw new DomainError("La prenotazione non può essere modificata perché è già stata finalizzata");
       }
 
 
@@ -291,7 +291,7 @@ export class ReservationService {
       // Recupera consumer per aggiornare credito
       const consumer = await this.userRepository.findByIdForUpdate(consumerId, tx);
       if (!consumer) {
-        throw new DomainError("CONSUMER_NOT_FOUND");
+        throw new DomainError("Consumatore non trovato");
       }
 
 
@@ -305,12 +305,12 @@ export class ReservationService {
         );
 
       if (!slot) {
-        throw new DomainError("SLOT_NOT_FOUND");
+        throw new DomainError("Slot non trovato");
       }
 
       // Se slot soft deleted: blocca modifiche
       if ((slot as any).deleted) {
-        throw new DomainError("SLOT_NOT_BOOKABLE");
+        throw new DomainError("Lo slot selezionato non è più disponibile e non può essere modificato");
       }
 
 
@@ -324,7 +324,7 @@ export class ReservationService {
         }
 
         // Entro 24h: modifiche vietate
-        throw new DomainError("MODIFICATION_NOT_ALLOWED_24H");
+        throw new DomainError("Non è possibile modificare la prenotazione nelle 24 ore precedenti allo slot");
       }
 
 
@@ -339,7 +339,7 @@ export class ReservationService {
       // Se deltaCost > 0: sto aumentando kWh => devo pagare di più
       if (deltaCost > 0) {
         if (consumer.credit < deltaCost) {
-          throw new DomainError("INSUFFICIENT_CREDIT");
+          throw new DomainError("Credito insufficiente");
         }
         consumer.credit = Number((consumer.credit - deltaCost).toFixed(3));
       }

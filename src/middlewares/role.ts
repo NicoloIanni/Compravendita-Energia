@@ -22,7 +22,7 @@ export const roleMiddleware = (allowedRole: Role) => {
      * - oppure il token era invalido
      */
     if (!req.user) {
-      return res.status(401).json({ message: "Unauthenticated" });
+      return res.status(401).json({ message: "Autenticazione richiesta" });
     }
 
      /**
@@ -31,7 +31,7 @@ export const roleMiddleware = (allowedRole: Role) => {
      * l'accesso viene negato.
      */
     if (req.user.role !== allowedRole) {
-      return res.status(403).json({ message: "Forbidden: insufficient role" });
+      return res.status(403).json({ message: "Non hai i permessi necessari per accedere a questa risorsa" });
     }
 
     // Ruolo valido → continua

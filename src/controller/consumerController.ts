@@ -95,11 +95,11 @@ export class ConsumerReservationController {
 
       // Validazione minima: id e kWh devono essere numeri
       if (Number.isNaN(reservationId)) {
-        return res.status(400).json({ error: "INVALID_RESERVATION_ID" });
+        return res.status(400).json({ error: "L'id della prenotazione e` errato" });
       }
 
       if (typeof requestedKwh !== "number") {
-        return res.status(400).json({ error: "INVALID_KWH" });
+        return res.status(400).json({ error: "La quantità di energia richiesta deve essere un numero (kWh)" });
       }
 
       await this.reservationService.updateReservation({
@@ -161,21 +161,21 @@ export class ConsumerReservationController {
       if (fromDate && typeof fromDate === "string") {
         // semplice validazione formato YYYY-MM-DD
         if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
-          return res.status(400).json({ error: "INVALID_fromDate_FORMAT" });
+          return res.status(400).json({ error: "fromDate deve essere nel formato YYYY-MM-DD" });
         }
         fromDt = fromDate;
       }
 
       if (toDate && typeof toDate === "string") {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
-          return res.status(400).json({ error: "INVALID_toDate_FORMAT" });
+          return res.status(400).json({ error: "toDate deve essere nel formato YYYY-MM-DD" });
         }
         toDt = toDate;
       }
 
       // Range date coerente
       if (fromDt && toDt && fromDt > toDt) {
-        return res.status(400).json({ error: "fromDate must be <= toDate" });
+        return res.status(400).json({ error: "La data di inizio deve essere precedente o uguale alla data di fine" });
       }
 
       // =========================
@@ -187,20 +187,20 @@ export class ConsumerReservationController {
       if (fromHour !== undefined) {
         fromHr = Number(fromHour);
         if (Number.isNaN(fromHr) || fromHr < 0 || fromHr > 23) {
-          return res.status(400).json({ error: "INVALID_fromHour_VALUE" });
+          return res.status(400).json({ error: "fromHour deve essere un numero compreso tra 0 e 23" });
         }
       }
 
       if (toHour !== undefined) {
         toHr = Number(toHour);
         if (Number.isNaN(toHr) || toHr < 0 || toHr > 23) {
-          return res.status(400).json({ error: "INVALID_toHour_VALUE" });
+          return res.status(400).json({ error: "toHour deve essere un numero compreso tra 0 e 23" });
         }
       }
 
       // Range orario coerente
       if (fromHr !== undefined && toHr !== undefined && fromHr > toHr) {
-        return res.status(400).json({ error: "fromHour must be <= toHour" });
+        return res.status(400).json({ error: "fromHour deve essere minore o uguale a toHour" });
       }
 
       // =========================
@@ -240,11 +240,11 @@ export class ConsumerReservationController {
       const toDate = to ? new Date(to as string) : undefined;
 
       if ((from && isNaN(fromDate!.getTime())) || (to && isNaN(toDate!.getTime()))) {
-        return res.status(400).json({ error: "INVALID_DATE_FORMAT" });
+        return res.status(400).json({ error: "Le date devono essere valide e nel formato YYYY-MM-DD" });
       }
 
       if (fromDate && toDate && fromDate > toDate) {
-        return res.status(400).json({ error: "from must be <= to" });
+        return res.status(400).json({ error: "La data di inizio deve essere precedente o uguale alla data di fine" });
       }
 
       const result = await this.consumerQueryService.getCarbonFootprint({

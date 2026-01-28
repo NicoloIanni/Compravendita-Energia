@@ -53,7 +53,7 @@ export async function getProducerRequestsOverview(params: {
     // SOMMA RICHIESTE (PENDING + ALLOCATED)
     // Serve per il pre-resolve
     // =========================
-    const sumRequested = await Reservation.sum("requestedKwh", {
+    const sumRequestedRaw = await Reservation.sum("requestedKwh", {
       where: {
         producerProfileId,
         date,
@@ -61,7 +61,7 @@ export async function getProducerRequestsOverview(params: {
         status: { [Op.in]: ["PENDING", "ALLOCATED"] },
       },
     });
-    const sumRequestedKwh = Number(sumRequested || 0);
+    const sumRequestedKwh = Number(sumRequestedRaw ?? 0);
 
     // =========================
     // SOMMA ALLOCATA (POST-RESOLVE)

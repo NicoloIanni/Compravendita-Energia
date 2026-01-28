@@ -11,7 +11,7 @@
       "script": {
         "exec": [
           "const now = new Date();",
-          "now.setHours(now.getHours() + 48);",
+          "now.setHours(now.getHours() + 24);",
           "const bookingDate = now.toISOString().slice(0, 10);",
           "pm.environment.set('bookingDate', bookingDate);",
           "console.log('bookingDate set to:', bookingDate);"
@@ -283,7 +283,7 @@
           }
         ],
         "url": {
-          "raw": "{{base_url}}/producers/me/requests?date={{date}}&fromHour={{fromHour}}&toHour={{toHour}}",
+          "raw": "{{base_url}}/producers/me/requests?date={{bookingDate}}",
           "host": [
             "{{base_url}}"
           ],
@@ -295,17 +295,17 @@
           "query": [
             {
               "key": "date",
-              "value": "{{date}}"
+              "value": "{{bookingDate}}"
             },
             {
               "key": "fromHour",
               "value": "{{fromHour}}",
-              "disabled": false
+              "disabled": true
             },
             {
               "key": "toHour",
               "value": "{{toHour}}",
-              "disabled": false
+              "disabled": true
             }
           ]
         }
@@ -421,7 +421,7 @@
           "script": {
             "exec": [
               "pm.test('Stats OK', () => pm.response.to.have.status(200));",
-              "pm.expect(pm.response.json()).to.be.an('object');"
+              "pm.expect(pm.response.json()).to.be.an('array');"
             ]
           }
         }

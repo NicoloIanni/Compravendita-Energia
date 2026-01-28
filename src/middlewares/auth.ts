@@ -42,7 +42,7 @@ export const authenticateJWT = (
   try {
     const secret = process.env.JWT_SECRET;
     if (!secret) {
-      return res.status(500).json({ error: "JWT_SECRET not set" });
+      return res.status(500).json({ error: "Configurazione del server non valida" });
     }
 
       /**

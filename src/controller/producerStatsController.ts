@@ -58,11 +58,11 @@ export const getMyEarnings = async (
       (from && isNaN(fromDate!.getTime())) ||
       (to && isNaN(toDate!.getTime()))
     ) {
-      return res.status(400).json({ error: "INVALID_DATE_FORMAT" });
+      return res.status(400).json({ error: "Le date devono essere valide e nel formato YYYY-MM-DD" });
     }
 
     if (fromDate && toDate && fromDate > toDate) {
-      return res.status(400).json({ error: "`from` must be <= `to`" });
+      return res.status(400).json({ error: "La data di inizio deve essere precedente o uguale alla data di fine" });
     }
 
     const result = await producerStatsService.getEarnings({
@@ -109,7 +109,7 @@ export const getMyStats = async (
     if (fromDate && typeof fromDate === "string") {
       fromDt = new Date(fromDate);
       if (isNaN(fromDt.getTime())) {
-        return res.status(400).json({ error: "INVALID_fromDate_FORMAT" });
+        return res.status(400).json({ error: "fromDate deve essere nel formato YYYY-MM-DD" });
       }
     }
 
@@ -117,7 +117,7 @@ export const getMyStats = async (
     if (toDate && typeof toDate === "string") {
       toDt = new Date(toDate);
       if (isNaN(toDt.getTime())) {
-        return res.status(400).json({ error: "INVALID_toDate_FORMAT" });
+        return res.status(400).json({ error: "toDate deve essere nel formato YYYY-MM-DD" });
       }
     }
 
@@ -125,7 +125,7 @@ export const getMyStats = async (
     if (fromHour !== undefined) {
       fromHr = Number(fromHour);
       if (Number.isNaN(fromHr) || fromHr < 0 || fromHr > 23) {
-        return res.status(400).json({ error: "INVALID_fromHour_VALUE" });
+        return res.status(400).json({ error: "fromHour deve essere un numero compreso tra 0 e 23" });
       }
     }
 
@@ -133,13 +133,13 @@ export const getMyStats = async (
     if (toHour !== undefined) {
       toHr = Number(toHour);
       if (Number.isNaN(toHr) || toHr < 0 || toHr > 23) {
-        return res.status(400).json({ error: "INVALID_toHour_VALUE" });
+        return res.status(400).json({ error: "toHour deve essere un numero compreso tra 0 e 23" });
       }
     }
 
     // check date range
     if (fromDt && toDt && fromDt > toDt) {
-      return res.status(400).json({ error: "fromDate must be <= toDate" });
+      return res.status(400).json({ error: "La data di inizio deve essere precedente o uguale alla data di fine" });
     }
 
     const stats = await producerStatsService.getStats({
@@ -186,14 +186,14 @@ export const getMyStatsChart = async (
     if (fromDate && typeof fromDate === "string") {
       fromDt = new Date(fromDate);
       if (isNaN(fromDt.getTime())) {
-        return res.status(400).json({ error: "INVALID_fromDate_FORMAT" });
+        return res.status(400).json({ error: "fromDate deve essere nel formato YYYY-MM-DD" });
       }
     }
 
     if (toDate && typeof toDate === "string") {
       toDt = new Date(toDate);
       if (isNaN(toDt.getTime())) {
-        return res.status(400).json({ error: "INVALID_toDate_FORMAT" });
+        return res.status(400).json({ error: "toDate deve essere nel formato YYYY-MM-DD" });
       }
     }
 
@@ -203,20 +203,20 @@ export const getMyStatsChart = async (
     if (fromHour !== undefined) {
       fromHr = Number(fromHour);
       if (Number.isNaN(fromHr) || fromHr < 0 || fromHr > 23) {
-        return res.status(400).json({ error: "INVALID_fromHour_VALUE" });
+        return res.status(400).json({ error: "fromHour deve essere un numero compreso tra 0 e 23" });
       }
     }
 
     if (toHour !== undefined) {
       toHr = Number(toHour);
       if (Number.isNaN(toHr) || toHr < 0 || toHr > 23) {
-        return res.status(400).json({ error: "INVALID_toHour_VALUE" });
+        return res.status(400).json({ error: "toHour deve essere un numero compreso tra 0 e 23" });
       }
     }
 
     // Validazione range date
     if (fromDt && toDt && fromDt > toDt) {
-      return res.status(400).json({ error: "fromDate must be <= toDate" });
+      return res.status(400).json({ error: "La data di inizio deve essere precedente o uguale alla data di fine" });
     }
 
     // -----------------------

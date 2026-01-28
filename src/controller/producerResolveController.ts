@@ -23,12 +23,12 @@ export const resolveProducerRequests = async (
 
   // auth/role check già fatto in middleware, qui controlliamo solo profileId
   if (!producerProfileId) {
-    return res.status(403).json({ error: "Producer profile missing" });
+    return res.status(403).json({ error: "Profilo produttore non associato all’utente" });
   }
 
   // date è obbligatoria per risolvere un giorno specifico
   if (!date || typeof date !== "string") {
-    return res.status(400).json({ error: "Missing or invalid date" });
+    return res.status(400).json({ error: "La data è obbligatoria e deve essere nel formato YYYY-MM-DD" });
   }
 
   try {
