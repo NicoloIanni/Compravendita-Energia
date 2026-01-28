@@ -240,7 +240,7 @@ export const getMyStatsChart = async (
     const stdValues: number[] = [];
 
     for (const dayStats of stats) {
-      for (const h of dayStats.hours) {
+      for (const h of dayStats.slots) {
         labels.push(`${dayStats.date} ${h.hour}:00`);
         minValues.push(h.minPercent);
         avgValues.push(h.avgPercent);

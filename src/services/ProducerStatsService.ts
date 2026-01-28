@@ -139,7 +139,7 @@ export class ProducerStatsService {
     // per ogni data → stats per ogni ora
     const result: Array<{
       date: string;
-      hours: Array<{
+      slots: Array<{
         hour: number;
         minPercent: number;
         maxPercent: number;
@@ -167,7 +167,7 @@ export class ProducerStatsService {
 
       result.push({
         date,
-        hours: hoursStats.sort((a, b) => a.hour - b.hour),
+        slots: hoursStats.sort((a, b) => a.hour - b.hour),
       });
     }
 
