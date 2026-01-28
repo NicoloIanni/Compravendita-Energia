@@ -544,11 +544,17 @@ Il diagramma dei casi d’uso descrive gli attori del sistema (**Admin**, **Prod
 e le principali funzionalità offerte dalla piattaforma.
 
 In particolare:
-- il **Producer** gestisce capacità e prezzo degli slot orari;
-- il **Consumer** può creare prenotazioni di energia soggette a vincoli temporali;
-- l’**Admin** inizializza il sistema (seed / creazione utenti).
+- l’**Admin** inizializza il sistema (seed / creazione utenti)
 
-![Use Case](docs/uml/img/use-case.png)
+![Use Case Admin](docs/uml/img/use-caseAdmin.png)
+
+- il **Producer** gestisce capacità e prezzo degli slot orari
+
+![Use Case Producer](docs/uml/img/use-caseProducer.png)
+
+- il **Consumer** può creare prenotazioni di energia soggette a vincoli temporali
+
+![Use Case Consumer](docs/uml/img/use-caseConsumer.png)
 
 
 ### Sequence Diagram – Reservation
