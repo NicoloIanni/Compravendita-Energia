@@ -79,8 +79,8 @@ Il sistema calcola CO₂ come:
     - `hour` (0–23)
    
 - **Vincolo 24h (prenotazione / modifica / cancellazione)**
-  - Uno slot è prenotabile **solo se l’inizio dello slot è strettamente oltre 24 ore rispetto al momento attuale**:
-    - Implementazione: `slotStart > now + 24h`
+   - Il sistema utilizza una variabile `bookingDate = now + 24h`.
+   - Uno slot è prenotabile **solo se l’inizio dello slot è successivo a `bookingDate`**.
   - Modifica/cancellazione:
     - **oltre 24h** → possibili rimborsi (dove previsti)
     - **entro 24h** → **NO refund** (l’addebito resta)
