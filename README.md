@@ -22,8 +22,8 @@
 L’obiettivo è realizzare un’applicazione che:
 
 - Gestisce utenti con ruoli (**admin / producer / consumer**)
-- Consente ai produttori di definire per ogni ora **capacità (kWh)** e **prezzo (price/kWh)**
-- Consente ai consumatori di creare **prenotazioni di energia**
+- Consente ai produttori di definire per ogni slot, ora **capacità (kWh)** e **prezzo (price/kWh)**
+- Consente ai consumatori di creare **prenotazioni degli slot **
 - Gestisce il **credito** dei consumatori con addebiti atomici (transaction DB)
 - Gestisce concorrenza e consistenza in presenza di richieste simultanee
 - Produce **statistiche** su occupazione, vendite, ricavi e **carbon footprint**
@@ -42,12 +42,17 @@ L’applicazione è progettata come **API REST**, con particolare attenzione a:
 ## Requisiti
 
 ### 1. Ruoli
-- **Admin**: crea produttori e consumatori (seed o endpoint dedicato).
+- **Admin**: crea produttori e consumatori.
 - **Producer**: gestisce slot (capacità/prezzo), vede richieste, risolve allocazioni, consulta statistiche/ricavi.
 - **Consumer**: prenota/modifica/cancella, vede acquisti e impronta CO₂.
 
-### 2. “Oggi per domani”
-Per semplicità operativa, il sistema lavora su **slot del giorno successivo (domani)**.
+### 2. Vincolo temporale (≥ 24h)
+
+Per semplicità espositiva, negli esempi si fa spesso riferimento a slot del
+“giorno successivo”, ma la **regola reale di dominio** è la seguente:
+
+> uno slot è prenotabile solo se il suo inizio è **almeno 24 ore nel futuro**
+> rispetto al momento della richiesta.
 
 ### 3. Slot orario
 Ogni slot è identificato da:
@@ -79,17 +84,17 @@ Il sistema calcola CO₂ come:
     - `hour` (0–23)
    
 - **Vincolo 24h (prenotazione / modifica / cancellazione)**
-   - Il sistema utilizza una variabile `bookingDate = now + 24h`.
-   - Uno slot è prenotabile **solo se l’inizio dello slot è successivo a `bookingDate`**.
+  - Il vincolo viene applicato confrontando l’inizio dello slot (`slotStart`) con il momento corrente.
   - Modifica/cancellazione:
     - **oltre 24h** → possibili rimborsi (dove previsti)
-    - **entro 24h** → **NO refund** (l’addebito resta)
+    - **entro 24h** → **nessun rimborso** (l’addebito resta)
+  - **Nota**: nella collection Postman viene calcolata la variabile `bookingDate` (=`now + 24h`) solo per selezionare automaticamente date coerenti durante i test.
 
 - **Creazione prenotazione (consumer)**
   - La prenotazione viene creata solo se:
-    - lo slot esiste (`SLOT_NOT_FOUND` se non esiste)
-    - mancano almeno **24h** all’inizio dello slot (`SLOT_NOT_BOOKABLE_24H`)
-    - il consumer ha credito sufficiente (`INSUFFICIENT_CREDIT`)
+    - lo slot esiste
+    - mancano almeno **24h** all’inizio dello slot
+    - il consumer ha credito sufficiente
     - `requestedKwh` è valido (minimo `>= 0.1`)
     - Ogni chiamata crea **una singola prenotazione** riferita a uno specifico slot (date+hour).
   - Se la prenotazione va a buon fine:
@@ -112,7 +117,7 @@ Il sistema calcola CO₂ come:
     - strategia **ProportionalCut** → `allocatedKwh = requestedKwh * (capacityKwh / sumRequestedKwh)`
   - Al termine:
     - le prenotazioni vengono aggiornate con `allocatedKwh`
-    - lo stato viene chiuso (es. **`ALLOCATED`**)
+    - lo stato viene chiuso (**`ALLOCATED`**)
 
 - **Rimborso differenze post-resolve**
   - Se dopo resolve `allocatedKwh < requestedKwh`:
@@ -198,8 +203,6 @@ Di seguito un riepilogo delle rotte principali implementate nel progetto:
 
 I controller dell’applicazione hanno il solo compito di gestire il livello HTTP
 e **non implementano logica di dominio**.  
-Seguono tutti le stesse linee guida architetturali, indipendentemente dal ruolo
-(admin / producer / consumer).
 
 #### Responsabilità comuni
 
@@ -236,8 +239,8 @@ Il progetto utilizza variabili d’ambiente per configurare l’API, la connessi
 e il sistema di autenticazione JWT.
 
 Le variabili vengono lette:
-- in **Docker Compose** (servizio `api`) tramite il file `.env.docker`;
-- in **esecuzione locale (dev)** tramite il file `.env`.
+- in **Docker Compose** tramite il file `.env.docker`;
+- in **esecuzione locale** tramite il file `.env`.
 
 ### Variabili richieste
 
@@ -268,7 +271,7 @@ Le variabili vengono lette:
 ### 1) Avvia i servizi
 Avvia l’API e il database PostgreSQL tramite Docker Compose:
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 
 ### 2) Esegui le migration
@@ -305,9 +308,9 @@ I test automatici verificano che l’API risponda correttamente sugli endpoint p
 
 Esecuzione:
 ```bash
-npm test
+npx jest
 ```
-Nota operativa: eseguendo npm test, ad ogni run avviene il reset completo del database e poi vengono eseguite automaticamente le migration e la seed (inizializzazione), così da garantire uno stato coerente e ripetibile ad ogni esecuzione della suite.
+Nota operativa: eseguendo il comando, ad ogni run avviene il reset completo del database e poi vengono eseguite automaticamente le migration e la seed (inizializzazione), così da garantire uno stato coerente e ripetibile ad ogni esecuzione della suite.
 
 La suite di test automatici copre i principali flussi dell’applicazione, includendo autenticazione, gestione slot, prenotazioni, regole 24h, allocazioni proporzionali e rimborsi.
 
@@ -368,9 +371,9 @@ Questo test verifica che il sistema rifiuti correttamente una prenotazione con u
 
 Expected Response: HTTP/1.1 400 Bad Request
 ```json
-[
+{
    "error": "La quantità minima prenotabile è di 0.1 Kwh"
-]
+}
 ```
 
 #### 3. 🟢 Test – Overview richieste producer per fascia oraria
@@ -442,7 +445,7 @@ Expected Response: HTTP/1.1 200 OK
 ```json
 [
   {
-    "date": 2026-01-22,
+    "date": "2026-01-22",
     "resolvedHours": 1,
     "oversubscribedHours": 1 // numero di fasce orarie in cui è stata rilevata oversubscription
   }
@@ -477,7 +480,7 @@ d’ambiente per:
 - credenziali di test
 - token JWT (salvato automaticamente dopo il login)
 
-#### Installazione Postman
+#### Installazione ed esecuzione Postman
 Su sistemi Linux (Ubuntu/Debian), Postman può essere installato tramite **Snap**:
 ```bash
 sudo snap install postman
@@ -485,6 +488,10 @@ sudo snap install postman
 Una volta installato, importare i file forniti nel progetto:
 - postman/CompravenditaEnergia.postman_collection.json
 - postman/CompravenditaEnergia.postman_environment.json
+
+> Nota: la collection usa variabili d’ambiente Postman (`admin_email`, `admin_password`) e salva automaticamente il token in `jwt_token` (e per compatibilità anche in `jwt`).  
+> Se cambiano le credenziali di seed è necessario aggiornare le variabili nell’environment Postman.  
+> Per le rotte protette, la collection usa `Authorization: Bearer {{jwt_token}}`.
 
 ### Newman
 Newman è l’esecuzione **da linea di comando** delle collection Postman.
@@ -496,24 +503,28 @@ Permette di rendere i test API:
 È particolarmente utile in fase di consegna, perché consente di dimostrare
 il corretto funzionamento dell’API in modo oggettivo.
 
-### Installazione Newman (consigliata: locale al progetto)
+### Installazione ed esecuzione Newman (consigliata: locale al progetto)
 ```bash
 npm i -D newman
 ```
 
-### Alcuni Endpoint coperti dalla collection
-- `GET /health` → `200 OK`
-- `POST /auth/login` → `200 OK` e ritorna `{ "accessToken": "<JWT>" }` con credenziali valide
-- `POST /auth/login` (wrong password) → `401 Unauthorized`
-- `GET /protected/ping` (con token) → `200 OK`
-- `PATCH /producers/me/slots` (producer + body valido) → `200 OK` (creazione/upsert batch slot)
-- `POST /producers/me/requests/resolve?date=...` → `200 OK` (allocazione + eventuale taglio + rimborsi)
-- `POST /consumers/me/reservations` (consumer + richiesta valida) → `201 Created` (prenotazione in stato `PENDING`)
+Dal root del progetto, con il backend avviato, è possibile eseguire l’intera
+collection Postman tramite il comando:
+```bash
+npx newman run postman/CompravenditaEnergia.postman_collection.json \
+  -e postman/CompravenditaEnergia.postman_environment.json
+```
 
-> Nota: la collection usa variabili d’ambiente Postman (`admin_email`, `admin_password`) e salva automaticamente il token in `jwt_token` (e per compatibilità anche in `jwt`).  
-> Se cambiano le credenziali di seed è necessario aggiornare le variabili nell’environment Postman.  
-> Per le rotte protette, la collection usa `Authorization: Bearer {{jwt_token}}`.
+Il comando:
+- carica la collection Postman del progetto;
+- utilizza l’environment fornito (base URL, credenziali di test, variabili dinamiche);
+- esegue tutte le richieste in sequenza, verificando automaticamente:
+  - i codici di stato HTTP;
+  - le risposte JSON attese;
+  - il rispetto delle regole di dominio.
 
+Al termine dell’esecuzione, Newman produce un **report riassuntivo**
+con il numero di richieste eseguite, eventuali errori e asserzioni fallite.
 
 ### Output atteso (Newman)
 La suite Newman deve completarsi senza errori, con:
@@ -531,7 +542,7 @@ Questo conferma che:
 2. **401 su /protected/ping** → token non salvato (login fallito) o `JWT_SECRET` diverso tra generazione e verify.
 3. **404 sulle route** → avete montato male i router o avete messo l’`errorHandler` prima delle route (in Express l’ordine conta).
 
-> **Nota**: Prima di eseguire Newman è necessario avviare l’ambiente su un **database pulito**.  
+> **Nota operativa**: Prima di eseguire Newman è necessario avviare l’ambiente su un **database pulito**.  
 > In caso contrario, i test di integrazione potrebbero fallire a causa di **dati persistenti**
 > (prenotazioni, slot o utenti già presenti).
 
@@ -607,6 +618,8 @@ basato esclusivamente sull’energia effettivamente allocata a seguito del proce
 ---
 
 ## Design Pattern
+
+### Repository Pattern
 
 Il Repository Pattern è utilizzato per isolare completamente l’accesso al database
 dalla logica di business, incapsulando l’uso diretto di Sequelize.
