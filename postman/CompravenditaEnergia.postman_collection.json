@@ -223,7 +223,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"date\": \"{{bookingDate}}\",\n  \"slots\": [\n    {\n      \"hour\": 10,\n      \"capacityKwh\": 10,\n      \"pricePerKwh\": 2\n    },\n    {\n      \"hour\": 11,\n      \"capacityKwh\": 8,\n      \"pricePerKwh\": 1.5\n    }\n  ]\n}"
+          "raw": "{\n  \"date\": \"{{bookingDate}}\",\n  \"slots\": [\n    {\n      \"hour\": 18,\n      \"capacityKwh\": 10,\n      \"pricePerKwh\": 2\n    },\n    {\n      \"hour\": 19,\n      \"capacityKwh\": 8,\n      \"pricePerKwh\": 1.5\n    }\n  ]\n}"
         },
         "url": "{{baseUrl}}/producers/me/slots"
       },
@@ -531,7 +531,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"producerProfileId\": 1,\n  \"date\": \"{{bookingDate}}\",\n  \"hour\": 10,\n  \"requestedKwh\": 5\n}"
+          "raw": "{\n  \"producerProfileId\": 1,\n  \"date\": \"{{bookingDate}}\",\n  \"hour\": 18,\n  \"requestedKwh\": 5\n}"
         },
         "url": "{{baseUrl}}/consumers/me/reservations"
       },
